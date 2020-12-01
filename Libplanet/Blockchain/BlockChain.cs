@@ -1041,6 +1041,98 @@ namespace Libplanet.Blockchain
             }
         }
 
+        public BlockChain<T> Fork(HashDigest<SHA256> point, bool inheritRenderers = true)
+        {
+            if (!ContainsBlock(point))
+            {
+                throw new ArgumentException(
+                    $"The block [{point}] doesn't exist.",
+                    nameof(point));
+            }
+
+            Block<T> pointBlock = this[point];
+
+            if (!point.Equals(this[pointBlock.Index].Hash))
+            {
+                throw new ArgumentException(
+                    $"The block [{point}] doesn't exist in the chain index.",
+                    nameof(point));
+            }
+
+            IEnumerable<IRenderer<T>> renderers = inheritRenderers
+                ? Renderers
+                : Enumerable.Empty<IRenderer<T>>();
+            var forked = new BlockChain<T>(
+                Policy, Store, StateStore, Guid.NewGuid(), Genesis, true, renderers);
+            Guid forkedId = forked.Id;
+            _logger.Debug(
+                "Trying to fork chain at {branchPoint}" +
+                "(prevId: {prevChainId}) (forkedId: {forkedChainId})",
+                point,
+                Id,
+                forkedId);
+            try
+            {
+                _rwlock.EnterReadLock();
+
+                Store.ForkBlockIndexes(Id, forkedId, point);
+
+                var signersToStrip = new Dictionary<Address, int>();
+
+                for (
+                    Block<T> block = Tip;
+                    block.PreviousHash is HashDigest<SHA256> hash
+                    && !block.Hash.Equals(point);
+                    block = _blocks[hash])
+                {
+                    IEnumerable<(Address, int)> signers = block
+                        .Transactions
+                        .GroupBy(tx => tx.Signer)
+                        .Select(g => (g.Key, g.Count()));
+
+                    foreach ((Address address, int txCount) in signers)
+                    {
+                        int existingValue = 0;
+                        signersToStrip.TryGetValue(address, out existingValue);
+                        signersToStrip[address] = existingValue + txCount;
+                    }
+                }
+
+                StateStore.ForkStates(Id, forked.Id, pointBlock);
+
+                foreach (KeyValuePair<Address, long> pair in Store.ListTxNonces(Id))
+                {
+                    Address address = pair.Key;
+                    long existingNonce = pair.Value;
+                    long txNonce = existingNonce;
+                    int staleTxCount = 0;
+                    if (signersToStrip.TryGetValue(address, out staleTxCount))
+                    {
+                        txNonce -= staleTxCount;
+                    }
+
+                    if (txNonce < 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"A tx nonce for {address} in the store seems broken.\n" +
+                            $"Existing tx nonce: {existingNonce}\n" +
+                            $"# of stale transactions: {staleTxCount}\n"
+                        );
+                    }
+
+                    // Note that at this point every address has tx nonce = 0
+                    // it's merely "setting" rather than "increasing."
+                    Store.IncreaseTxNonce(forkedId, address, txNonce);
+                }
+            }
+            finally
+            {
+                _rwlock.ExitReadLock();
+            }
+
+            return forked;
+        }
+
         internal void Append(
             Block<T> block,
             DateTimeOffset currentTime,
@@ -1134,10 +1226,7 @@ namespace Libplanet.Blockchain
                 _rwlock.EnterWriteLock();
                 try
                 {
-                    if (evaluateActions)
-                    {
-                        evaluations = ExecuteActions(block);
-                    }
+                    evaluations = ExecuteActions(block);
 
                     _blocks[block.Hash] = block;
                     foreach (KeyValuePair<Address, long> pair in nonceDeltas)
@@ -1435,98 +1524,6 @@ namespace Libplanet.Blockchain
             }
         }
 
-        internal BlockChain<T> Fork(HashDigest<SHA256> point, bool inheritRenderers = true)
-        {
-            if (!ContainsBlock(point))
-            {
-                throw new ArgumentException(
-                    $"The block [{point}] doesn't exist.",
-                    nameof(point));
-            }
-
-            Block<T> pointBlock = this[point];
-
-            if (!point.Equals(this[pointBlock.Index].Hash))
-            {
-                throw new ArgumentException(
-                    $"The block [{point}] doesn't exist in the chain index.",
-                    nameof(point));
-            }
-
-            IEnumerable<IRenderer<T>> renderers = inheritRenderers
-                ? Renderers
-                : Enumerable.Empty<IRenderer<T>>();
-            var forked = new BlockChain<T>(
-                Policy, Store, StateStore, Guid.NewGuid(), Genesis, true, renderers);
-            Guid forkedId = forked.Id;
-            _logger.Debug(
-                "Trying to fork chain at {branchPoint}" +
-                "(prevId: {prevChainId}) (forkedId: {forkedChainId})",
-                point,
-                Id,
-                forkedId);
-            try
-            {
-                _rwlock.EnterReadLock();
-
-                Store.ForkBlockIndexes(Id, forkedId, point);
-
-                var signersToStrip = new Dictionary<Address, int>();
-
-                for (
-                    Block<T> block = Tip;
-                    block.PreviousHash is HashDigest<SHA256> hash
-                    && !block.Hash.Equals(point);
-                    block = _blocks[hash])
-                {
-                    IEnumerable<(Address, int)> signers = block
-                        .Transactions
-                        .GroupBy(tx => tx.Signer)
-                        .Select(g => (g.Key, g.Count()));
-
-                    foreach ((Address address, int txCount) in signers)
-                    {
-                        int existingValue = 0;
-                        signersToStrip.TryGetValue(address, out existingValue);
-                        signersToStrip[address] = existingValue + txCount;
-                    }
-                }
-
-                StateStore.ForkStates(Id, forked.Id, pointBlock);
-
-                foreach (KeyValuePair<Address, long> pair in Store.ListTxNonces(Id))
-                {
-                    Address address = pair.Key;
-                    long existingNonce = pair.Value;
-                    long txNonce = existingNonce;
-                    int staleTxCount = 0;
-                    if (signersToStrip.TryGetValue(address, out staleTxCount))
-                    {
-                        txNonce -= staleTxCount;
-                    }
-
-                    if (txNonce < 0)
-                    {
-                        throw new InvalidOperationException(
-                            $"A tx nonce for {address} in the store seems broken.\n" +
-                            $"Existing tx nonce: {existingNonce}\n" +
-                            $"# of stale transactions: {staleTxCount}\n"
-                        );
-                    }
-
-                    // Note that at this point every address has tx nonce = 0
-                    // it's merely "setting" rather than "increasing."
-                    Store.IncreaseTxNonce(forkedId, address, txNonce);
-                }
-            }
-            finally
-            {
-                _rwlock.ExitReadLock();
-            }
-
-            return forked;
-        }
-
         internal BlockLocator GetBlockLocator(int threshold = 10)
         {
             try
@@ -1802,11 +1799,8 @@ namespace Libplanet.Blockchain
                     .SelectMany(kv => kv.Value.Select(c => (kv.Key, c))))
                 .ToImmutableHashSet();
 
-            if (!StateStore.ContainsBlockStates(block.Hash))
-            {
-                var totalDelta = actionEvaluations.GetTotalDelta(ToStateKey, ToFungibleAssetKey);
-                StateStore.SetStates(block, totalDelta);
-            }
+            var totalDelta = actionEvaluations.GetTotalDelta(ToStateKey, ToFungibleAssetKey);
+            StateStore.SetStates(block, totalDelta);
 
             if (buildStateReferences && StateStore is IBlockStatesStore blockStatesStore)
             {
