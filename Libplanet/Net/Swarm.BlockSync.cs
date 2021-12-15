@@ -20,6 +20,8 @@ namespace Libplanet.Net
         /// </summary>
         public BlockDemandTable<T> BlockDemandTable { get; private set; }
 
+        public BlockCandidateTable<T> BlockCandidateTable { get; private set; }
+
         internal AsyncAutoResetEvent FillBlocksAsyncStarted { get; } = new AsyncAutoResetEvent();
 
         internal AsyncAutoResetEvent FillBlocksAsyncFailed { get; } = new AsyncAutoResetEvent();
@@ -115,16 +117,18 @@ namespace Libplanet.Net
             {
                 if (BlockDemandTable.Any())
                 {
-                    BlockDemand largest =
-                        BlockDemandTable.Demands.Values.Aggregate(
-                            (acc, next) =>
-                                next.TotalDifficulty > acc.TotalDifficulty ? next : acc);
-
-                    await ProcessBlockDemand(
-                        largest,
-                        timeout,
-                        cancellationToken);
-                    BlockDemandTable.Remove(largest.Peer);
+                    _logger.Debug(
+                        "{MethodName} blockDemand count: {BlockDemandCount}",
+                        nameof(FillBlocksAsync),
+                        BlockDemandTable.Demands.Count);
+                    foreach (var blockDemand in BlockDemandTable.Demands.Values)
+                    {
+                        BlockDemandTable.Remove(blockDemand.Peer);
+                        _ = ProcessBlockDemandAsync(
+                            blockDemand,
+                            timeout,
+                            cancellationToken);
+                    }
                 }
                 else
                 {
