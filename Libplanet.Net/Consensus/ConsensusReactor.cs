@@ -138,7 +138,7 @@ namespace Libplanet.Net.Consensus
                 block.Index,
                 _context.Round,
                 blockHash,
-                payload)
+                payload, -1)
             {
                 Remote = _consensusTransport.AsPeer,
             };

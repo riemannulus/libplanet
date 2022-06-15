@@ -40,7 +40,7 @@ namespace Libplanet.Net.Tests.Consensus.States
             Assert.Throws<TryUnexpectedMessageHandleException>(
                 () => state.Handle(
                     context,
-                    new ConsensusPropose(0, 0, 0, blockHash, payload)));
+                    new ConsensusPropose(0, 0, 0, blockHash, payload, -1)));
         }
 
         [Fact]

@@ -11,10 +11,12 @@ namespace Libplanet.Net.Messages
             long height,
             long round,
             BlockHash blockHash,
-            byte[] payload)
-        : base(nodeId, height, round, blockHash)
+            byte[] payload,
+            int validRound)
+            : base(nodeId, height, round, blockHash)
         {
             Payload = payload;
+            ValidRound = validRound;
         }
 
         public ConsensusPropose(byte[][] dataframes)
@@ -24,6 +26,8 @@ namespace Libplanet.Net.Messages
         }
 
         public byte[] Payload { get; }
+
+        public int ValidRound { get; }
 
         public override IEnumerable<byte[]> DataFrames
         {

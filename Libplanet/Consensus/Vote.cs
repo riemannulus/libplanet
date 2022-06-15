@@ -40,7 +40,7 @@ namespace Libplanet.Consensus
         public Vote(
             long height,
             long round,
-            BlockHash blockHash,
+            BlockHash? blockHash,
             DateTimeOffset timestamp,
             PublicKey validator,
             VoteFlag flag,
@@ -105,7 +105,7 @@ namespace Libplanet.Consensus
         /// <summary>
         /// <see cref="BlockHash"/> of the block in vote.
         /// </summary>
-        public BlockHash BlockHash { get; }
+        public BlockHash? BlockHash { get; }
 
         /// <summary>
         /// The time at which the voting took place.

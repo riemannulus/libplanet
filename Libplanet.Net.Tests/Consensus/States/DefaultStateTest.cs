@@ -29,7 +29,7 @@ namespace Libplanet.Net.Tests.Consensus.States
         }
 
         [Fact]
-        public void Handle()
+        public void Handle(int validRound = -1)
         {
             BlockHash blockHash = _fx.Block1.Hash;
             byte[] payload = new Codec().Encode(_fx.Block1.MarshalBlock());
@@ -43,21 +43,22 @@ namespace Libplanet.Net.Tests.Consensus.States
             Assert.Throws<UnexpectedRoundProposeException>(
                 () => state.Handle(
                     context,
-                    new ConsensusPropose(0, 1, 1, blockHash, payload)
+                    new ConsensusPropose(0, 1, 1, blockHash, payload, validRound)
                         { Remote = TestUtils.Peer0 }));
             Assert.Throws<UnexpectedLeaderProposeException>(
                 () => state.Handle(
                     context,
-                    new ConsensusPropose(1, 1, 0, blockHash, payload)
+                    new ConsensusPropose(1, 1, 0, blockHash, payload, validRound)
                         { Remote = TestUtils.Peer0 }));
             Assert.Throws<UnexpectedHeightProposeException>(
                 () => state.Handle(
                     context,
-                    new ConsensusPropose(1, 2, 0, blockHash, payload)
+                    new ConsensusPropose(1, 2, 0, blockHash, payload, validRound)
                         { Remote = TestUtils.Peer0 }));
             ConsensusMessage? res = state.Handle(
                 context,
-                new ConsensusPropose(0, 1, 0, blockHash, payload) { Remote = TestUtils.Peer0 });
+                new ConsensusPropose(0, 1, 0, blockHash, payload, validRound)
+                    { Remote = TestUtils.Peer0 });
             Assert.NotNull(res);
             Assert.IsType<ConsensusVote>(res);
             Assert.Equal(blockHash, context.CurrentRoundContext.BlockHash);

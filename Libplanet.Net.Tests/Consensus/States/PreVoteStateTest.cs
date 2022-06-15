@@ -59,7 +59,7 @@ namespace Libplanet.Net.Tests.Consensus.States
             Assert.Throws<TryUnexpectedMessageHandleException>(
                 () => state.Handle(
                     context,
-                    new ConsensusPropose(0, 1, 0, validBlockHash, validBlockPayload)
+                    new ConsensusPropose(0, 1, 0, validBlockHash, validBlockPayload, -1)
                         { Remote = TestUtils.Peer0 }));
             Assert.Throws<UnexpectedRoundProposeException>(
                 () => state.Handle(
