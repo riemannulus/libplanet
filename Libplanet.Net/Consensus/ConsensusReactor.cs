@@ -47,7 +47,7 @@ namespace Libplanet.Net.Consensus
             {
                 throw new ArgumentException($"{nameof(validators)} " +
                                             $"and {nameof(validatorPeers)}" +
-                                            $"are must contain same public key.");
+                                            "are must contain same public key.");
             }
 
             // TODO: Height and round should be serialized.
@@ -67,6 +67,8 @@ namespace Libplanet.Net.Consensus
                 .ForContext("Source", nameof(ConsensusReactor<T>));
         }
 
+        private delegate Task<bool> PingPong(BoundPeer peer);
+
         public bool Running => _consensusTransport.Running;
 
         public void Dispose()
@@ -79,6 +81,7 @@ namespace Libplanet.Net.Consensus
         {
             Task task = _consensusTransport.StartAsync(cancellationToken);
             await _consensusTransport.WaitForRunningAsync();
+            await CheckValidatorsLiveness(cancellationToken);
             _consensusContext.NewHeight(_blockChain.Tip.Index + 1);
             await task;
         }
@@ -112,6 +115,47 @@ namespace Libplanet.Net.Consensus
                     await ReplyMessagePongAsync(message);
                     _consensusContext.HandleMessage(consensusMessage);
                     break;
+                case Ping ping:
+                    await ReplyMessagePongAsync(ping);
+                    break;
+            }
+        }
+
+        private async Task CheckValidatorsLiveness(CancellationToken ctx)
+        {
+            while (!ctx.IsCancellationRequested)
+            {
+                PingPong sendMessage = async peer =>
+                {
+                    try
+                    {
+                        var pong = await _consensusTransport.SendMessageAsync(
+                            peer,
+                            new Ping(),
+                            TimeSpan.FromSeconds(1),
+                            ctx);
+                        return pong is Pong;
+                    }
+                    catch (Exception)
+                    {
+                        return false;
+                    }
+                };
+
+                var tasks = _validatorPeers
+                    .Select(peer => sendMessage(peer))
+                    .ToList();
+                var countOfPong = (await Task.WhenAll(tasks)).Count(x => x);
+
+                var twoThird = _validators.Count * 2.0 / 3.0;
+                _logger.Debug($"{nameof(CheckValidatorsLiveness)}:" +
+                              $" count of pong => {countOfPong}, twoThird => {twoThird}");
+                if (countOfPong > twoThird)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(10), ctx);
             }
         }
 
