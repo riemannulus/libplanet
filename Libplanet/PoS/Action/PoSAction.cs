@@ -12,18 +12,18 @@ namespace Libplanet.Action
     /// specified <see cref="BlockReward"/>
     /// of tokens to Proposer and each <see cref="Validator"/>s.
     /// </summary>
-    public sealed class BlockAction : IAction
+    public sealed class PoSAction : IAction
     {
         /// <summary>
-        /// Creates a new instance of <see cref="BlockAction"/>.
+        /// Creates a new instance of <see cref="PoSAction"/>.
         /// </summary>
         /// <param name="blockReward">The amount of the rewards to be distributed.</param>
-        public BlockAction(FungibleAssetValue blockReward)
+        public PoSAction(FungibleAssetValue blockReward)
         {
             BlockReward = blockReward;
         }
 
-        internal BlockAction()
+        internal PoSAction()
         {
             // Used only for deserialization.  See also class Libplanet.Action.Sys.Registry.
         }

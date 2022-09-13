@@ -102,16 +102,12 @@ namespace Libplanet.Action
                     previousStates: previousStates,
                     previousBlockStatesTrie: previousBlockStatesTrie).ToImmutableList();
 
-                if (_policyBlockAction is null)
-                {
-                    return evaluations;
-                }
-                else
+                if (!(_policyBlockAction is null))
                 {
                     previousStates = evaluations.Count > 0
                         ? evaluations.Last().OutputStates
                         : previousStates;
-                    return evaluations.Add(
+                    evaluations = evaluations.Add(
                         EvaluatePolicyBlockAction(
                             block: block,
                             previousStates: previousStates,
@@ -119,6 +115,8 @@ namespace Libplanet.Action
                         )
                     );
                 }
+
+                return evaluations;
             }
             finally
             {
@@ -643,6 +641,29 @@ namespace Libplanet.Action
             {
                 return previousStates;
             }
+        }
+
+        [Pure]
+        internal ActionEvaluation EvaluateSystemUpdate(
+            IPreEvaluationBlock<T> block,
+            IAccountStateDelta previousStates,
+            ITrie? previousBlockStatesTrie)
+        {
+            return EvaluateActions(
+                genesisHash: _genesisHash,
+                preEvaluationHash: block.PreEvaluationHash,
+                blockIndex: block.Index,
+                txid: null,
+                previousStates: previousStates,
+                miner: block.Miner,
+                signer: block.Miner,
+                signature: Array.Empty<byte>(),
+                actions: new[] {new PoSAction()}.ToImmutableList(),
+                rehearsal: false,
+                previousBlockStatesTrie: previousBlockStatesTrie,
+                blockAction: true,
+                nativeTokenPredicate: _nativeTokenPredicate
+            ).Single();
         }
 
         /// <summary>
