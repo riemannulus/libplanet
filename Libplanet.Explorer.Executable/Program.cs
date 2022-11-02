@@ -445,6 +445,8 @@ If omitted (default) explorer only the local blockchain store.")]
             public IComparer<IBlockExcerpt> CanonicalChainComparer =>
                 _impl.CanonicalChainComparer;
 
+            public IFeeCalculator FeeCalculator => null;
+
             public int GetMinTransactionsPerBlock(long index) =>
                 _impl.GetMinTransactionsPerBlock(index);
 

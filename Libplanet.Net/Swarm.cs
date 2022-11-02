@@ -817,6 +817,11 @@ namespace Libplanet.Net
                 yield break;
             }
 
+            if (parsedMessage is PingMsg ping)
+            {
+                yield break;
+            }
+
             string errorMessage =
                 $"The response of {nameof(GetBlockHashes)} is expected to be " +
                 $"{nameof(BlockHashesMsg)}, not {parsedMessage.GetType().Name}: {parsedMessage}";
