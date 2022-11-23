@@ -37,12 +37,16 @@ To be released.
  -  Added `StaticActionTypeLoader` class.  [[#2539]]
  -  (Libplanet.Explorer) Added a new GraphQL endpoint on `/graphql/explorer`.
     [[#2562]]
+ -  Added `IFeeCalculator` interface. [[#2566]]
+ -  Added new parameter of `ActionEvaluator<T>`
+    takes `IFeeCalculator?`. [[#2566]]
  -  (Libplanet.Explorer) Added `ConfigureLibplanetExplorerSchema` class.
     [[#2572]]
 
 [#2507]: https://github.com/planetarium/libplanet/pull/2507
 [#2539]: https://github.com/planetarium/libplanet/pull/2539
 [#2562]: https://github.com/planetarium/libplanet/pull/2562
+[#2566]: https://github.com/planetarium/libplanet/pull/2566
 
 ### Behavioral changes
 
