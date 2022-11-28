@@ -249,6 +249,7 @@ namespace Libplanet.Blocks
             IAction? blockAction,
             Predicate<Currency> nativeTokenPredicate,
             IStateStore stateStore,
+            IFeeCalculator? feeCalculator,
             out IImmutableDictionary<string, IValue> statesDelta
         )
         {
@@ -267,7 +268,8 @@ namespace Libplanet.Blocks
                 blockChainStates: NullChainStates<T>.Instance,
                 trieGetter: null,
                 genesisHash: null,
-                nativeTokenPredicate: nativeTokenPredicate
+                nativeTokenPredicate: nativeTokenPredicate,
+                feeCalculator: feeCalculator
             );
             IReadOnlyList<ActionEvaluation> actionEvaluations =
                 actionEvaluator.Evaluate(this, StateCompleterSet<T>.Reject);

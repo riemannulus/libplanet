@@ -211,7 +211,7 @@ namespace Libplanet.Blockchain.Policies
         /// <inheritdoc/>
         public IComparer<IBlockExcerpt> CanonicalChainComparer { get; }
 
-        public IFeeCalculator? FeeCalculator => null;
+        public IFeeCalculator FeeCalculator => new AlwaysZeroFeeFeeCalculator();
 
         /// <inheritdoc/>
         public virtual TxPolicyViolationException? ValidateNextBlockTx(

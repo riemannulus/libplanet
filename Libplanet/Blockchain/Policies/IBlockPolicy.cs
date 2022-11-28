@@ -44,7 +44,7 @@ namespace Libplanet.Blockchain.Policies
         IImmutableSet<Currency> NativeTokens { get; }
 
         [Pure]
-        IFeeCalculator? FeeCalculator { get; }
+        IFeeCalculator FeeCalculator { get; }
 
         /// <summary>
         /// Checks if a <see cref="Transaction{T}"/> can be included in a yet to be mined

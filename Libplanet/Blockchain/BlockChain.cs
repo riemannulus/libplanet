@@ -134,7 +134,8 @@ namespace Libplanet.Blockchain
                         store.GetBlockDigest(hash)?.StateRootHash
                     ),
                     genesisHash: genesisBlock.Hash,
-                    nativeTokenPredicate: policy.NativeTokens.Contains
+                    nativeTokenPredicate: policy.NativeTokens.Contains,
+                    feeCalculator: policy.FeeCalculator
                 )
             )
         {

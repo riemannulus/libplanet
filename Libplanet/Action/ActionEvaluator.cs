@@ -34,7 +34,7 @@ namespace Libplanet.Action
         private readonly Func<BlockHash, ITrie>? _trieGetter;
         private readonly Predicate<Currency> _nativeTokenPredicate;
         private readonly IActionTypeLoader _actionTypeLoader;
-        private readonly IFeeCalculator? _feeCalculator;
+        private readonly IFeeCalculator _feeCalculator;
 
         /// <summary>
         /// Creates a new <see cref="ActionEvaluator{T}"/>.
@@ -51,12 +51,15 @@ namespace Libplanet.Action
         /// <param name="nativeTokenPredicate">A predicate function to determine whether
         /// the specified <see cref="Currency"/> is a native token defined by chain's
         /// <see cref="Libplanet.Blockchain.Policies.IBlockPolicy{T}.NativeTokens"/> or not.</param>
+        /// <param name="feeCalculator">A <see cref="IFeeCalculator"/> implementation
+        /// using to transaction fee calculate.</param>
         public ActionEvaluator(
             IAction? policyBlockAction,
             IBlockChainStates<T> blockChainStates,
             Func<BlockHash, ITrie>? trieGetter,
             BlockHash? genesisHash,
-            Predicate<Currency> nativeTokenPredicate)
+            Predicate<Currency> nativeTokenPredicate,
+            IFeeCalculator? feeCalculator)
         : this(
             policyBlockAction,
             blockChainStates,
@@ -69,14 +72,14 @@ namespace Libplanet.Action
                     : new[] { typeof(T).Assembly },
                 typeof(T)
             ),
-            null
+            feeCalculator ?? new AlwaysZeroFeeFeeCalculator()
         )
         {
         }
 
 #pragma warning disable MEN002
 #pragma warning disable CS1573
-        /// <inheritdoc cref="ActionEvaluator{T}(IAction?, IBlockChainStates{T}, Func{BlockHash,ITrie}?, BlockHash?, Predicate{Currency})" />
+        /// <inheritdoc cref="ActionEvaluator{T}(IAction?, IBlockChainStates{T}, Func{BlockHash,ITrie}?, BlockHash?, Predicate{Currency}, IFeeCalculator)" />
         /// <param name="actionTypeLoader"> A <see cref="IActionTypeLoader"/> implementation using action type lookup.</param>
         /// <param name="feeCalculator">A <see cref="IFeeCalculator"/> implementation using to transaction fee calculate.</param>
         public ActionEvaluator(
@@ -86,7 +89,7 @@ namespace Libplanet.Action
             BlockHash? genesisHash,
             Predicate<Currency> nativeTokenPredicate,
             IActionTypeLoader actionTypeLoader,
-            IFeeCalculator? feeCalculator
+            IFeeCalculator feeCalculator
         )
 #pragma warning restore MEN002
 #pragma warning restore CS1573
@@ -259,7 +262,7 @@ namespace Libplanet.Action
                 rehearsal: true,
                 previousBlockStatesTrie: null,
                 nativeTokenPredicate: _ => true,
-                feeCalculator: null);
+                feeCalculator: new AlwaysZeroFeeFeeCalculator());
 
             if (evaluations.Any())
             {
@@ -296,6 +299,7 @@ namespace Libplanet.Action
         /// <param name="nativeTokenPredicate">A predicate function to determine whether
         /// the specified <see cref="Currency"/> is a native token defined by chain's
         /// <see cref="Libplanet.Blockchain.Policies.IBlockPolicy{T}.NativeTokens"/> or not.</param>
+        /// <param name="feeCalculator">Fee calculator.</param>
         /// <param name="rehearsal">Pass <see langword="true"/> if it is intended
         /// to be dry-run (i.e., the returned result will be never used).
         /// The default value is <see langword="false"/>.</param>
@@ -303,7 +307,6 @@ namespace Libplanet.Action
         /// </param>
         /// <param name="blockAction">Pass <see langword="true"/> if it is
         /// <see cref="IBlockPolicy{T}.BlockAction"/>.</param>
-        /// <param name="feeCalculator">Fee calculator.</param>
         /// <param name="logger">An optional logger.</param>
         /// <returns>An enumeration of <see cref="ActionEvaluation"/>s for each
         /// <see cref="IAction"/> in <paramref name="actions"/>.
@@ -337,10 +340,10 @@ namespace Libplanet.Action
             byte[] signature,
             IImmutableList<IAction> actions,
             Predicate<Currency> nativeTokenPredicate,
+            IFeeCalculator feeCalculator,
             bool rehearsal = false,
             ITrie? previousBlockStatesTrie = null,
             bool blockAction = false,
-            IFeeCalculator? feeCalculator = null,
             ILogger? logger = null)
         {
             ActionContext CreateActionContext(IAccountStateDelta prevStates, int randomSeed)
@@ -359,6 +362,65 @@ namespace Libplanet.Action
                     nativeTokenPredicate: nativeTokenPredicate);
             }
 
+            Exception WrapActionException(
+                IAction action,
+                Exception innerException,
+                HashDigest<SHA256>? stateRootHash,
+                bool rehearsal)
+            {
+                Exception exc;
+                if (rehearsal)
+                {
+                    var message =
+                        $"The action {action} threw an exception during its " +
+                        "rehearsal.  It is probably because the logic of the " +
+                        $"action {action} is not enough generic so that it " +
+                        "can cover every case including rehearsal mode.\n" +
+                        "The IActionContext.Rehearsal property also might be " +
+                        "useful to make the action can deal with the case of " +
+                        "rehearsal mode.\n" +
+                        "See also this exception's InnerException property.";
+                    exc = new UnexpectedlyTerminatedActionException(
+                        message, null, null, null, null, action, innerException);
+                }
+                else
+                {
+                    var message =
+                        "Action {Action} of tx {TxId} of block #{BlockIndex} with " +
+                        "pre-evaluation hash {PreEvaluationHash} and previous " +
+                        "state root hash {StateRootHash} threw an exception " +
+                        "during execution.";
+                    logger?.Error(
+                        innerException,
+                        message,
+                        action,
+                        txid,
+                        blockIndex,
+                        ByteUtil.Hex(preEvaluationHash),
+                        stateRootHash);
+                    var innerMessage =
+                        $"The action {action} (block #{blockIndex}, " +
+                        $"pre-evaluation hash {ByteUtil.Hex(preEvaluationHash)}, tx {txid}, " +
+                        $"previous state root hash {stateRootHash}) threw " +
+                        "an exception during execution.  " +
+                        "See also this exception's InnerException property.";
+                    logger?.Error(
+                        "{Message}\nInnerException: {ExcMessage}",
+                        innerMessage,
+                        innerException.Message);
+                    exc = new UnexpectedlyTerminatedActionException(
+                        innerMessage,
+                        preEvaluationHash,
+                        blockIndex,
+                        txid,
+                        stateRootHash,
+                        action,
+                        innerException);
+                }
+
+                return exc;
+            }
+
             byte[] hashedSignature;
             using (var hasher = SHA1.Create())
             {
@@ -374,11 +436,11 @@ namespace Libplanet.Action
                 Exception? exc = null;
                 IAccountStateDelta nextStates = states;
                 HashDigest<SHA256>? stateRootHash = null;
+                DateTimeOffset actionExecutionStarted = DateTimeOffset.Now;
+                TimeSpan spent = DateTimeOffset.Now - actionExecutionStarted;
+
                 try
                 {
-                    DateTimeOffset actionExecutionStarted = DateTimeOffset.Now;
-                    TimeSpan spent = DateTimeOffset.Now - actionExecutionStarted;
-
                     if (blockIndex == 0)
                     {
                         logger?.Verbose("The actions in the genesis block don't be charged.");
@@ -391,22 +453,30 @@ namespace Libplanet.Action
                     {
                         logger?.Verbose("blockAction don't be charged.");
                     }
-                    else if (feeCalculator is null)
-                    {
-                        logger?.Verbose("No fee calculator given, skip charging.");
-                    }
                     else
                     {
                         logger?.Verbose($"Measuring fee of {action} started");
                         FungibleAssetValue fee = feeCalculator.CalculateFee(action);
                         logger?.Verbose($"Measured fee of {action} is {fee}");
-                        nextStates = states = states.TransferAsset(signer, miner, fee);
+                        switch (fee.Sign)
+                        {
+                            case -1:
+                                // No charged when fee is minus.
+                                break;
+                            case 0:
+                                // No charged when fee is zero.
+                                break;
+                            case 1:
+                                nextStates = states.TransferAsset(signer, miner, fee);
+                                break;
+                        }
                     }
 
-                    ActionContext context = CreateActionContext(states, seed);
+                    ActionContext context = CreateActionContext(nextStates, seed);
                     stateRootHash = context.PreviousStateRootHash;
                     nextStates = action.Execute(context);
-                    logger?.Verbose($"{action} execution spent {spent.TotalMilliseconds} ms.");
+                    logger?.Verbose(
+                        $"{action} execution spent {spent.TotalMilliseconds} ms.");
                 }
                 catch (OutOfMemoryException e)
                 {
@@ -427,52 +497,7 @@ namespace Libplanet.Action
                 }
                 catch (Exception e)
                 {
-                    if (rehearsal)
-                    {
-                        var message =
-                            $"The action {action} threw an exception during its " +
-                            "rehearsal.  It is probably because the logic of the " +
-                            $"action {action} is not enough generic so that it " +
-                            "can cover every case including rehearsal mode.\n" +
-                            "The IActionContext.Rehearsal property also might be " +
-                            "useful to make the action can deal with the case of " +
-                            "rehearsal mode.\n" +
-                            "See also this exception's InnerException property.";
-                        exc = new UnexpectedlyTerminatedActionException(
-                            message, null, null, null, null, action, e);
-                    }
-                    else
-                    {
-                        var message =
-                            "Action {Action} of tx {TxId} of block #{BlockIndex} with " +
-                            "pre-evaluation hash {PreEvaluationHash} and previous " +
-                            "state root hash {StateRootHash} threw an exception " +
-                            "during execution.";
-                        logger?.Error(
-                            e,
-                            message,
-                            action,
-                            txid,
-                            blockIndex,
-                            ByteUtil.Hex(preEvaluationHash),
-                            stateRootHash);
-                        var innerMessage =
-                            $"The action {action} (block #{blockIndex}, " +
-                            $"pre-evaluation hash {ByteUtil.Hex(preEvaluationHash)}, tx {txid}, " +
-                            $"previous state root hash {stateRootHash}) threw " +
-                            "an exception during execution.  " +
-                            "See also this exception's InnerException property.";
-                        logger?.Error(
-                            "{Message}\nInnerException: {ExcMessage}", innerMessage, e.Message);
-                        exc = new UnexpectedlyTerminatedActionException(
-                            innerMessage,
-                            preEvaluationHash,
-                            blockIndex,
-                            txid,
-                            stateRootHash,
-                            action,
-                            e);
-                    }
+                    exc = WrapActionException(action, exc ?? e, stateRootHash, rehearsal);
                 }
 
                 // As IActionContext.Random is stateful, we cannot reuse
@@ -677,6 +702,7 @@ namespace Libplanet.Action
                 signature: Array.Empty<byte>(),
                 actions: new[] { _policyBlockAction }.ToImmutableList(),
                 rehearsal: false,
+                feeCalculator: _feeCalculator,
                 previousBlockStatesTrie: previousBlockStatesTrie,
                 blockAction: true,
                 nativeTokenPredicate: _nativeTokenPredicate
