@@ -1,14 +1,14 @@
 using System;
 using Libplanet.Assets;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// The exception that is thrown when a <see cref="TransactionSigner"/> has no rights
     /// to mint a <see cref="Currency"/> or burn assets of a <see cref="Currency"/>.
     /// </summary>
-    /// <seealso cref="IAccountStateDelta.MintAsset"/>
-    /// <seealso cref="IAccountStateDelta.BurnAsset"/>
+    /// <seealso cref="ILegacyStateDelta.MintAsset"/>
+    /// <seealso cref="ILegacyStateDelta.BurnAsset"/>
     [Serializable]
     public sealed class CurrencyPermissionException : Exception
     {

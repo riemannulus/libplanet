@@ -15,13 +15,15 @@ namespace Libplanet.State
         public Address Id { get; }
 
         /// <summary>
-        /// Account's memo.
+        /// Account's nonce.
         /// </summary>
-        public string? Memo { get; }
+        public long Nonce { get; }
 
         /// <summary>
         /// Account's state root hash.
         /// </summary>
         public HashDigest<SHA256> StateRootHash { get; }
+
+        public IAccount ChangeStateRoot(HashDigest<SHA256> stateRootHash);
     }
 }

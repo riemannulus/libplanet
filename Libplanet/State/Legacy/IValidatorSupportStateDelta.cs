@@ -1,7 +1,7 @@
 using System.Diagnostics.Contracts;
 using Libplanet.Consensus;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     public interface IValidatorSupportStateDelta
     {
@@ -18,9 +18,9 @@ namespace Libplanet.State
         /// If 0 is given as its power, removes the validator from the <see cref="ValidatorSet"/>.
         /// </summary>
         /// <param name="validator">The <see cref="Validator"/> instance to write.</param>
-        /// <returns>A new <see cref="IAccountStateDelta"/> instance with
+        /// <returns>A new <see cref="ILegacyStateDelta"/> instance with
         /// <paramref name="validator"/> set.</returns>
         [Pure]
-        IAccountStateDelta SetValidator(Validator validator);
+        ILegacyStateDelta SetValidator(Validator validator);
     }
 }

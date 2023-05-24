@@ -1,425 +1,61 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics.Contracts;
 using System.Linq;
-using System.Numerics;
-using Bencodex.Types;
-using Libplanet.Action;
-using Libplanet.Assets;
-using Libplanet.Consensus;
+using System.Security.Cryptography;
+using Libplanet.Blockchain;
+using Libplanet.State.Legacy;
+using Libplanet.Store.Trie;
 
 namespace Libplanet.State
 {
-    /// <summary>
-    /// An internal implementation of <see cref="IAccountStateDelta"/>.
-    /// </summary>
-    [Pure]
-    internal class AccountStateDeltaImpl : IValidatorSupportStateDelta, IAccountStateDelta
+    internal class AccountStateDeltaImpl : IAccountStateDelta
     {
-        /// <summary>
-        /// Creates a null delta from the given <paramref name="accountStateGetter"/>.
-        /// </summary>
-        /// <param name="accountStateGetter">A view to the &#x201c;epoch&#x201d; states.</param>
-        /// <param name="accountBalanceGetter">A view to the &#x201c;epoch&#x201d; asset balances.
-        /// </param>
-        /// <param name="totalSupplyGetter">A view to the &#x201c;epoch&#x201d; total supplies of
-        /// currencies.</param>
-        /// <param name="validatorSetGetter">A view to the &#x201c;epoch&#x201d; validator
-        /// set.</param>
-        /// <param name="signer">A signer address. Used for authenticating if a signer is allowed
-        /// to mint a currency.</param>
-        internal AccountStateDeltaImpl(
-            AccountStateGetter accountStateGetter,
-            AccountBalanceGetter accountBalanceGetter,
-            TotalSupplyGetter totalSupplyGetter,
-            ValidatorSetGetter validatorSetGetter,
-            Address signer
-        )
+        private readonly IBlockChainStates _blockChainStates;
+        private readonly ILegacyStateDelta _legacyStateDelta;
+        private readonly ITrie _accountTrie;
+        private readonly IImmutableDictionary<IAccount, IStorageDelta> _storageDeltas;
+
+        public AccountStateDeltaImpl(
+            IBlockChainStates blockContent,
+            ILegacyStateDelta legacyStateDelta,
+            ITrie accountTrie,
+            IImmutableDictionary<IAccount, IStorageDelta>? storageDeltas = null)
         {
-            StateGetter = accountStateGetter;
-            BalanceGetter = accountBalanceGetter;
-            TotalSupplyGetter = totalSupplyGetter;
-            ValidatorSetGetter = validatorSetGetter;
-            UpdatedStates = ImmutableDictionary<Address, IValue>.Empty;
-            UpdatedFungibles = ImmutableDictionary<(Address, Currency), BigInteger>.Empty;
-            UpdatedTotalSupply = ImmutableDictionary<Currency, BigInteger>.Empty;
-            Signer = signer;
+            _blockChainStates = blockContent;
+            _legacyStateDelta = legacyStateDelta;
+            _accountTrie = accountTrie;
+            _storageDeltas = storageDeltas
+                ?? new Dictionary<IAccount, IStorageDelta>().ToImmutableDictionary();
         }
 
-        /// <inheritdoc/>
-        [Pure]
-        IImmutableSet<Address> IAccountStateDelta.UpdatedAddresses =>
-            UpdatedStates.Keys.ToImmutableHashSet().Union(
-                UpdatedFungibles.Select(kv => kv.Key.Item1)
-            );
+        public HashDigest<SHA256> RootHash => _accountTrie.Hash;
 
-        /// <inheritdoc/>
-        IImmutableSet<Address> IAccountStateDelta.StateUpdatedAddresses =>
-            UpdatedStates.Keys.ToImmutableHashSet();
+        public IReadOnlyList<HashDigest<SHA256>> UpdatedStorageRootHashes =>
+            _storageDeltas
+                .Select(x => x.Value)
+                .Select(x => x.RootHash)
+                .ToList();
 
-        /// <inheritdoc/>
-        IImmutableDictionary<Address, IImmutableSet<Currency>>
-            IAccountStateDelta.UpdatedFungibleAssets => UpdatedFungibles
-                .GroupBy(kv => kv.Key.Item1)
-                .ToImmutableDictionary(
-                    g => g.Key,
-                    g => (IImmutableSet<Currency>)g.Select(kv => kv.Key.Item2)
-                .ToImmutableHashSet());
+        public ILegacyStateDelta GetLegacy() => _legacyStateDelta;
 
-        [Pure]
-        IImmutableSet<Currency> IAccountStateDelta.TotalSupplyUpdatedCurrencies =>
-            UpdatedTotalSupply.Keys.ToImmutableHashSet();
+        public IAccountStateDelta SetLegacy(ILegacyStateDelta legacyStateDelta) =>
+            new AccountStateDeltaImpl(_blockChainStates, legacyStateDelta, _accountTrie);
 
-        protected AccountStateGetter StateGetter { get; set; }
+        public IStorageDelta GetStorage(IAccount account) =>
+            _storageDeltas.TryGetValue(account, out var storageDelta)
+                ? storageDelta
+                : new StorageDelta(account, _blockChainStates.GetTrie(account.StateRootHash));
 
-        protected AccountBalanceGetter BalanceGetter { get; set; }
-
-        protected TotalSupplyGetter TotalSupplyGetter { get; set; }
-
-        protected ValidatorSetGetter ValidatorSetGetter { get; set; }
-
-        protected Address Signer { get; set; }
-
-        protected IImmutableDictionary<Address, IValue> UpdatedStates { get; set; }
-
-        protected IImmutableDictionary<(Address, Currency), BigInteger> UpdatedFungibles
+        public IAccountStateDelta SetStorage(IStorageDelta storageDelta)
         {
-            get;
-            set;
+            IAccount nextAccount = storageDelta.Owner.ChangeStateRoot(storageDelta.RootHash);
+            return new AccountStateDeltaImpl(
+                _blockChainStates,
+                _legacyStateDelta,
+                _accountTrie.Set(new KeyBytes(nextAccount.Id.ByteArray), nextAccount.Serialize()).Commit(),
+                _storageDeltas.SetItem(nextAccount, storageDelta));
         }
 
-        protected IImmutableDictionary<Currency, BigInteger> UpdatedTotalSupply { get; set; }
-
-        protected ValidatorSet? UpdatedValidatorSet { get; set; } = null;
-
-        /// <inheritdoc/>
-        [Pure]
-        IValue? IAccountStateView.GetState(Address address)
-        {
-            ActionContext.GetStateTimer.Value?.Start();
-            ActionContext.GetStateCount.Value += 1;
-            var state = UpdatedStates.TryGetValue(address, out IValue? value)
-                ? value
-                : StateGetter(new[] { address })[0];
-            ActionContext.GetStateTimer.Value?.Stop();
-            return state;
-        }
-
-        /// <inheritdoc cref="IAccountStateView.GetStates(IReadOnlyList{Address})"/>
-        [Pure]
-        IReadOnlyList<IValue?> IAccountStateView.GetStates(IReadOnlyList<Address> addresses)
-        {
-            ActionContext.GetStateTimer.Value?.Start();
-            int length = addresses.Count;
-            ActionContext.GetStateCount.Value += length;
-            IValue?[] values = new IValue?[length];
-            var notFoundIndices = new List<int>(length);
-            for (int i = 0; i < length; i++)
-            {
-                Address address = addresses[i];
-                if (UpdatedStates.TryGetValue(address, out IValue? updatedValue))
-                {
-                    values[i] = updatedValue;
-                }
-                else
-                {
-                    notFoundIndices.Add(i);
-                }
-            }
-
-            if (notFoundIndices.Count > 0)
-            {
-                IReadOnlyList<IValue?> restValues = StateGetter(
-                    notFoundIndices.Select(index => addresses[index]).ToArray());
-                foreach ((var v, var i) in notFoundIndices.Select((v, i) => (v, i)))
-                {
-                    values[v] = restValues[i];
-                }
-            }
-
-            ActionContext.GetStateTimer.Value?.Stop();
-            return values;
-        }
-
-        /// <inheritdoc/>
-        [Pure]
-        IAccountStateDelta IAccountStateDelta.SetState(Address address, IValue state) =>
-            UpdateStates(UpdatedStates.SetItem(address, state));
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual FungibleAssetValue GetBalance(Address address, Currency currency) =>
-            GetBalance(address, currency, UpdatedFungibles);
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual FungibleAssetValue GetTotalSupply(Currency currency)
-        {
-            if (!currency.TotalSupplyTrackable)
-            {
-                throw TotalSupplyNotTrackableException.WithDefaultMessage(currency);
-            }
-
-            // Return dirty state if it exists.
-            if (UpdatedTotalSupply.TryGetValue(currency, out BigInteger totalSupplyValue))
-            {
-                return FungibleAssetValue.FromRawValue(currency, totalSupplyValue);
-            }
-
-            return TotalSupplyGetter(currency);
-        }
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual ValidatorSet GetValidatorSet() =>
-            UpdatedValidatorSet ?? ValidatorSetGetter();
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual IAccountStateDelta MintAsset(Address recipient, FungibleAssetValue value)
-        {
-            if (value.Sign <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    "The value to mint has to be greater than zero."
-                );
-            }
-
-            Currency currency = value.Currency;
-            if (!currency.AllowsToMint(Signer))
-            {
-                throw new CurrencyPermissionException(
-                    $"The account {Signer} has no permission to mint the currency {currency}.",
-                    Signer,
-                    currency
-                );
-            }
-
-            FungibleAssetValue balance = GetBalance(recipient, currency);
-
-            if (currency.TotalSupplyTrackable)
-            {
-                var currentTotalSupply = GetTotalSupply(currency);
-                if (currency.MaximumSupply < currentTotalSupply + value)
-                {
-                    var msg = $"The amount {value} attempted to be minted added to the current"
-                              + $" total supply of {currentTotalSupply} exceeds the"
-                              + $" maximum allowed supply of {currency.MaximumSupply}.";
-                    throw new SupplyOverflowException(msg, value);
-                }
-
-                return UpdateFungibleAssets(
-                    UpdatedFungibles.SetItem((recipient, currency), (balance + value).RawValue),
-                    UpdatedTotalSupply.SetItem(currency, (currentTotalSupply + value).RawValue)
-                );
-            }
-
-            return UpdateFungibleAssets(
-                UpdatedFungibles.SetItem((recipient, currency), (balance + value).RawValue)
-            );
-        }
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual IAccountStateDelta TransferAsset(
-            Address sender,
-            Address recipient,
-            FungibleAssetValue value,
-            bool allowNegativeBalance = false
-        )
-        {
-            if (value.Sign <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    "The value to transfer has to be greater than zero."
-                );
-            }
-
-            Currency currency = value.Currency;
-            FungibleAssetValue senderBalance = GetBalance(sender, currency);
-
-            if (!allowNegativeBalance && senderBalance < value)
-            {
-                var msg = $"The account {sender}'s balance of {currency} is insufficient to " +
-                          $"transfer: {senderBalance} < {value}.";
-                throw new InsufficientBalanceException(msg, sender, senderBalance);
-            }
-
-            IImmutableDictionary<(Address, Currency), BigInteger> updatedFungibleAssets =
-                UpdatedFungibles
-                .SetItem((sender, currency), (senderBalance - value).RawValue);
-
-            FungibleAssetValue recipientBalance = GetBalance(
-                recipient,
-                currency,
-                updatedFungibleAssets);
-
-            return UpdateFungibleAssets(
-                updatedFungibleAssets
-                    .SetItem((recipient, currency), (recipientBalance + value).RawValue)
-            );
-        }
-
-        /// <inheritdoc/>
-        [Pure]
-        public virtual IAccountStateDelta BurnAsset(Address owner, FungibleAssetValue value)
-        {
-            string msg;
-
-            if (value.Sign <= 0)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    "The value to burn has to be greater than zero."
-                );
-            }
-
-            Currency currency = value.Currency;
-            if (!currency.AllowsToMint(Signer))
-            {
-                msg = $"The account {Signer} has no permission to burn assets of " +
-                      $"the currency {currency}.";
-                throw new CurrencyPermissionException(msg, Signer, currency);
-            }
-
-            FungibleAssetValue balance = GetBalance(owner, currency);
-
-            if (balance < value)
-            {
-                msg = $"The account {owner}'s balance of {currency} is insufficient to burn: " +
-                      $"{balance} < {value}.";
-                throw new InsufficientBalanceException(msg, owner, balance);
-            }
-
-            if (currency.TotalSupplyTrackable)
-            {
-                return UpdateFungibleAssets(
-                    UpdatedFungibles.SetItem((owner, currency), (balance - value).RawValue),
-                    UpdatedTotalSupply.SetItem(
-                        currency,
-                        (GetTotalSupply(currency) - value).RawValue)
-                );
-            }
-
-            return UpdateFungibleAssets(
-                UpdatedFungibles.SetItem((owner, currency), (balance - value).RawValue)
-            );
-        }
-
-        /// <inheritdoc/>
-        [Pure]
-        public IAccountStateDelta SetValidator(Validator validator)
-        {
-            return UpdateValidatorSet(GetValidatorSet().Update(validator));
-        }
-
-        /// <summary>
-        /// Creates a null delta from the given <paramref name="accountStateGetter"/>,
-        /// <paramref name="accountBalanceGetter"/>, and <paramref name="totalSupplyGetter"/>,
-        /// with a subtype of <see cref="AccountStateDeltaImpl"/> that corresponds to the
-        /// <paramref name="protocolVersion"/>.
-        /// </summary>
-        /// <param name="protocolVersion">The protocol version of which to create a delta.</param>
-        /// <param name="accountStateGetter">A view to the &#x201c;epoch&#x201d; states.</param>
-        /// <param name="accountBalanceGetter">A view to the &#x201c;epoch&#x201d; asset balances.
-        /// </param>
-        /// <param name="totalSupplyGetter">A view to the &#x201c;epoch&#x201d; total supplies of
-        /// currencies.</param>
-        /// <param name="validatorSetGetter">A view to the &#x201c;epoch&#x201d; validator
-        /// set.</param>
-        /// <param name="signer">A signer address. Used for authenticating if a signer is allowed
-        /// to mint a currency.</param>
-        /// <returns>A instance of a subtype of <see cref="AccountStateDeltaImpl"/> which
-        /// corresponds to the <paramref name="protocolVersion"/>.</returns>
-        [Pure]
-        internal static AccountStateDeltaImpl ChooseVersion(
-            int protocolVersion,
-            AccountStateGetter accountStateGetter,
-            AccountBalanceGetter accountBalanceGetter,
-            TotalSupplyGetter totalSupplyGetter,
-            ValidatorSetGetter validatorSetGetter,
-            Address signer) => protocolVersion > 0
-            ? new AccountStateDeltaImpl(
-                accountStateGetter,
-                accountBalanceGetter,
-                totalSupplyGetter,
-                validatorSetGetter,
-                signer)
-            : new AccountStateDeltaImplV0(
-                accountStateGetter,
-                accountBalanceGetter,
-                totalSupplyGetter,
-                validatorSetGetter,
-                signer);
-
-        [Pure]
-        protected virtual FungibleAssetValue GetBalance(
-            Address address,
-            Currency currency,
-            IImmutableDictionary<(Address, Currency), BigInteger> balances) =>
-            balances.TryGetValue((address, currency), out BigInteger balance)
-                ? FungibleAssetValue.FromRawValue(currency, balance)
-                : BalanceGetter(address, currency);
-
-        [Pure]
-        protected virtual AccountStateDeltaImpl UpdateStates(
-            IImmutableDictionary<Address, IValue> updatedStates
-        ) =>
-            new AccountStateDeltaImpl(
-                StateGetter,
-                BalanceGetter,
-                TotalSupplyGetter,
-                ValidatorSetGetter,
-                Signer)
-            {
-                UpdatedStates = updatedStates,
-                UpdatedFungibles = UpdatedFungibles,
-                UpdatedTotalSupply = UpdatedTotalSupply,
-                UpdatedValidatorSet = UpdatedValidatorSet,
-            };
-
-        [Pure]
-        protected virtual AccountStateDeltaImpl UpdateFungibleAssets(
-            IImmutableDictionary<(Address, Currency), BigInteger> updatedFungibleAssets
-        ) =>
-            UpdateFungibleAssets(updatedFungibleAssets, UpdatedTotalSupply);
-
-        [Pure]
-        protected virtual AccountStateDeltaImpl UpdateFungibleAssets(
-            IImmutableDictionary<(Address, Currency), BigInteger> updatedFungibleAssets,
-            IImmutableDictionary<Currency, BigInteger> updatedTotalSupply
-        ) =>
-            new AccountStateDeltaImpl(
-                StateGetter,
-                BalanceGetter,
-                TotalSupplyGetter,
-                ValidatorSetGetter,
-                Signer)
-            {
-                UpdatedStates = UpdatedStates,
-                UpdatedFungibles = updatedFungibleAssets,
-                UpdatedTotalSupply = updatedTotalSupply,
-                UpdatedValidatorSet = UpdatedValidatorSet,
-            };
-
-        [Pure]
-        protected virtual AccountStateDeltaImpl UpdateValidatorSet(
-            ValidatorSet updatedValidatorSet
-        ) =>
-            new AccountStateDeltaImpl(
-                StateGetter,
-                BalanceGetter,
-                TotalSupplyGetter,
-                ValidatorSetGetter,
-                Signer)
-            {
-                UpdatedStates = UpdatedStates,
-                UpdatedFungibles = UpdatedFungibles,
-                UpdatedTotalSupply = UpdatedTotalSupply,
-                UpdatedValidatorSet = updatedValidatorSet,
-            };
+        public IAccount GetAccount(Address address) => _blockChainStates.GetAccount();
     }
 }

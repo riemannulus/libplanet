@@ -5,7 +5,7 @@ using Bencodex.Types;
 using Libplanet.Assets;
 using Libplanet.Blocks;
 using Libplanet.Consensus;
-using Libplanet.State;
+using Libplanet.State.Legacy;
 using Libplanet.Store;
 using Libplanet.Store.Trie;
 using static Libplanet.Blockchain.KeyConverters;

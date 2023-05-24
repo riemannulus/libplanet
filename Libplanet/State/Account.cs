@@ -10,39 +10,38 @@ namespace Libplanet.State
     {
         public Account(
             Address id,
-            string? memo,
+            long nonce,
             HashDigest<SHA256> stateRootHash)
         {
             Id = id;
-            Memo = memo;
+            Nonce = nonce;
             StateRootHash = stateRootHash;
         }
 
         public Account(Bencodex.Types.List serialized)
         {
-            Nonce = (Integer)serialized[0];
-            Id = new Address(serialized[1]);
+            Id = new Address(serialized[0]);
+            Nonce = (Integer)serialized[1];
             StateRootHash = new HashDigest<SHA256>((Binary)serialized[2]);
-            Memo = serialized.Count > 3 ? (Text?)serialized[3] : null;
         }
 
         public long Nonce { get; }
 
         public Address Id { get; }
 
-        public string? Memo { get; }
-
         public HashDigest<SHA256> StateRootHash { get; }
+
+        public IAccount ChangeStateRoot(HashDigest<SHA256> stateRootHash)
+        {
+            return new Account(Id, Nonce, stateRootHash);
+        }
 
         public IValue Serialize()
         {
              var list = Bencodex.Types.List.Empty
                 .Add(Id.Bencoded)
+                .Add(Nonce)
                 .Add(StateRootHash.ByteArray);
-             if (Memo is { } memo)
-             {
-                 list.Add(memo);
-             }
 
              return list;
         }

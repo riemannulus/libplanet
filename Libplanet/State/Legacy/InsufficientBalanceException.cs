@@ -3,14 +3,14 @@ using System.Runtime.Serialization;
 using Libplanet.Assets;
 using Libplanet.Serialization;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// The exception that is thrown when a sender has less <see cref="Balance"/> than amount to
     /// transfer or an owner has less <see cref="Balance"/> than amount to burn.
     /// </summary>
-    /// <seealso cref="IAccountStateDelta.TransferAsset"/>
-    /// <seealso cref="IAccountStateDelta.BurnAsset"/>
+    /// <seealso cref="ILegacyStateDelta.TransferAsset"/>
+    /// <seealso cref="ILegacyStateDelta.BurnAsset"/>
     [Serializable]
     public sealed class InsufficientBalanceException : Exception
     {

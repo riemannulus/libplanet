@@ -15,6 +15,7 @@ using Libplanet.Blockchain.Policies;
 using Libplanet.Blocks;
 using Libplanet.Consensus;
 using Libplanet.State;
+using Libplanet.State.Legacy;
 using Libplanet.Store.Trie;
 using Libplanet.Tx;
 using Serilog;
@@ -103,7 +104,9 @@ namespace Libplanet.Action
                 ITrie? previousBlockStatesTrie = block.PreviousHash is { } previousHash
                     ? _blockChainStates.GetTrie(previousHash)
                     : null;
-                IAccountStateDelta previousStates = GetPreviousBlockOutputStates(block);
+                ILegacyStateDelta previousLegacyStates = GetPreviousBlockOutputStates(block);
+                IAccountStateDelta previousStates =
+                    new AccountStateDeltaImpl(_blockChainStates, previousLegacyStates);
 
                 ImmutableList<ActionEvaluation> evaluations = EvaluateBlock(
                     block: block,
@@ -446,13 +449,14 @@ namespace Libplanet.Action
             {
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
-                delta = AccountStateDeltaImpl.ChooseVersion(
-                    block.ProtocolVersion,
-                    delta.GetStates,
-                    delta.GetBalance,
-                    delta.GetTotalSupply,
-                    delta.GetValidatorSet,
-                    tx.Signer);
+                delta = delta.SetLegacy(
+                    LegacyStateDeltaImpl.ChooseVersion(
+                        block.ProtocolVersion,
+                        delta.GetLegacy().GetStates,
+                        delta.GetLegacy().GetBalance,
+                        delta.GetLegacy().GetTotalSupply,
+                        delta.GetLegacy().GetValidatorSet,
+                        tx.Signer));
 
                 IEnumerable<ActionEvaluation> evaluations = EvaluateTx(
                     blockHeader: block,
@@ -642,14 +646,14 @@ namespace Libplanet.Action
         /// <returns>The last previous <see cref="IAccountStateDelta"/> for the previous
         /// <see cref="Block"/>.
         /// </returns>
-        private IAccountStateDelta GetPreviousBlockOutputStates(
+        private ILegacyStateDelta GetPreviousBlockOutputStates(
             IPreEvaluationBlockHeader blockHeader)
         {
             var (accountStateGetter, accountBalanceGetter, totalSupplyGetter, validatorSetGetter) =
                 InitializeAccountGettersPair(blockHeader);
             Address miner = blockHeader.Miner;
 
-            return AccountStateDeltaImpl.ChooseVersion(
+            return LegacyStateDeltaImpl.ChooseVersion(
                 blockHeader.ProtocolVersion,
                 accountStateGetter,
                 accountBalanceGetter,

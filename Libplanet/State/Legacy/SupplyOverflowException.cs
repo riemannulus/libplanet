@@ -3,13 +3,13 @@ using System.Runtime.Serialization;
 using Libplanet.Assets;
 using Libplanet.Serialization;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// The exception thrown when a minter tries to mint a currency such that the resulting total
     /// supply exceed the maximum amount.
     /// </summary>
-    /// <seealso cref="IAccountStateDelta.MintAsset"/>
+    /// <seealso cref="ILegacyStateDelta.MintAsset"/>
     [Serializable]
     public sealed class SupplyOverflowException : Exception
     {

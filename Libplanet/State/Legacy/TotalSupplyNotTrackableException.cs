@@ -3,14 +3,14 @@ using System.Runtime.Serialization;
 using Libplanet.Assets;
 using Libplanet.Serialization;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
-    /// The exception thrown when <see cref="IAccountStateView.GetTotalSupply"/> was called on a
+    /// The exception thrown when <see cref="ILegacyStateView.GetTotalSupply"/> was called on a
     /// legacy untracked currency with <see cref="Assets.Currency.TotalSupplyTrackable"/> set to
     /// <see langword="false"/>.
     /// </summary>
-    /// <seealso cref="IAccountStateView.GetTotalSupply"/>
+    /// <seealso cref="ILegacyStateView.GetTotalSupply"/>
     [Serializable]
     public sealed class TotalSupplyNotTrackableException : Exception
     {

@@ -5,6 +5,7 @@ using System.Diagnostics.Contracts;
 using System.Security.Cryptography;
 using System.Threading;
 using Libplanet.State;
+using Libplanet.State.Legacy;
 using Libplanet.Store.Trie;
 using Libplanet.Tx;
 
@@ -71,7 +72,7 @@ namespace Libplanet.Action
             get
             {
                 return _previousStateRootHash ??= _previousBlockStatesTrie?
-                    .Set(PreviousStates.GetUpdatedRawStates())
+                    .Set(PreviousStates.GetLegacy().GetUpdatedRawStates())
                     .Commit()
                     .Hash;
             }

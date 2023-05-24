@@ -6,6 +6,7 @@ using System.Reflection;
 using Bencodex.Types;
 using Libplanet.Consensus;
 using Libplanet.State;
+using Libplanet.State.Legacy;
 
 namespace Libplanet.Action.Sys
 {
@@ -72,7 +73,7 @@ namespace Libplanet.Action.Sys
             {
                 foreach (Validator v in vs.Validators)
                 {
-                    states = states.SetValidator(v);
+                    states = states.SetLegacy(states.GetLegacy().SetValidator(v));
                 }
             }
 
@@ -80,7 +81,7 @@ namespace Libplanet.Action.Sys
             {
                 foreach (KeyValuePair<Address, IValue> kv in s)
                 {
-                    states = states.SetState(kv.Key, kv.Value);
+                    states = states.SetLegacy(states.GetLegacy().SetState(kv.Key, kv.Value));
                 }
             }
 

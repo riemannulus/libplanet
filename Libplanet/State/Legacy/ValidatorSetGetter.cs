@@ -1,6 +1,6 @@
 using Libplanet.Consensus;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// An delegate to provide a view of the <see cref="ValidatorSet"/>.

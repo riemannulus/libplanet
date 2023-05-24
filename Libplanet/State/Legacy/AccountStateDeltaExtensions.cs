@@ -5,12 +5,12 @@ using Bencodex.Types;
 using Libplanet.Assets;
 using static Libplanet.Blockchain.KeyConverters;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     internal static class AccountStateDeltaExtensions
     {
         internal static IImmutableDictionary<Address, IValue?> GetUpdatedStates(
-            this IAccountStateDelta delta
+            this ILegacyStateDelta delta
         )
         {
             return delta.StateUpdatedAddresses.Select(address =>
@@ -22,7 +22,7 @@ namespace Libplanet.State
         }
 
         internal static IImmutableDictionary<(Address, Currency), FungibleAssetValue>
-            GetUpdatedBalances(this IAccountStateDelta delta) =>
+            GetUpdatedBalances(this ILegacyStateDelta delta) =>
             delta.UpdatedFungibleAssets.SelectMany(kv =>
                 kv.Value.Select(currency =>
                     new KeyValuePair<(Address, Currency), FungibleAssetValue>(
@@ -33,7 +33,7 @@ namespace Libplanet.State
             ).ToImmutableDictionary();
 
         internal static IImmutableDictionary<Currency, FungibleAssetValue>
-            GetUpdatedTotalSupplies(this IAccountStateDelta delta) =>
+            GetUpdatedTotalSupplies(this ILegacyStateDelta delta) =>
             delta.TotalSupplyUpdatedCurrencies.Select(currency =>
                     new KeyValuePair<Currency, FungibleAssetValue>(
                         currency,
@@ -41,7 +41,7 @@ namespace Libplanet.State
                 .ToImmutableDictionary();
 
         internal static IImmutableDictionary<string, IValue?> GetUpdatedRawStates(
-            this IAccountStateDelta delta)
+            this ILegacyStateDelta delta)
         {
             var dict = delta.GetUpdatedStates()
                 .Select(

@@ -3,7 +3,7 @@ using System.Diagnostics.Contracts;
 using Bencodex.Types;
 using Libplanet.Assets;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// An interface to fetch account states.
@@ -27,7 +27,7 @@ namespace Libplanet.State
     /// </item>
     /// </list>
     /// </summary>
-    public interface IAccountStateView
+    public interface ILegacyStateView
     {
         /// <summary>
         /// Gets the account state of the given <paramref name="address"/>.

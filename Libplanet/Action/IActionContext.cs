@@ -2,6 +2,7 @@ using System.Diagnostics.Contracts;
 using System.Security.Cryptography;
 using Libplanet.Blocks;
 using Libplanet.State;
+using Libplanet.State.Legacy;
 using Libplanet.Tx;
 
 namespace Libplanet.Action
@@ -51,10 +52,10 @@ namespace Libplanet.Action
         /// <summary>
         /// A null delta of states, which means it represents the states
         /// before <see cref="IAction"/> executes.
-        /// <para>Although a <see cref="IAccountStateDelta"/> instance is
+        /// <para>Although a <see cref="ILegacyStateDelta"/> instance is
         /// immutable, it has several manipulative methods that returns
         /// new <see cref="IAccountStateDelta"/> instances with some "dirty"
-        /// states.  These kinds of dirty <see cref="IAccountStateDelta"/>
+        /// states.  These kinds of dirty <see cref="ILegacyStateDelta"/>
         /// instances can be returned by <see
         /// cref="IAction.Execute(IActionContext)"/> method.</para>
         /// </summary>

@@ -1,6 +1,6 @@
 using Libplanet.Assets;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
     /// An delegate to provide a view of total supply of a currency.

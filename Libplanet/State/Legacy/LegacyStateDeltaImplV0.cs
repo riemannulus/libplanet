@@ -5,16 +5,16 @@ using System.Numerics;
 using Bencodex.Types;
 using Libplanet.Assets;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     /// <summary>
-    /// Equivalent to <see cref="AccountStateDeltaImpl"/> except that it maintains its old (v0)
+    /// Equivalent to <see cref="LegacyStateDeltaImpl"/> except that it maintains its old (v0)
     /// incorrect behavior of <see cref="TransferAsset"/>.
     /// </summary>
     [Pure]
-    internal class AccountStateDeltaImplV0 : AccountStateDeltaImpl
+    internal class LegacyStateDeltaImplV0 : LegacyStateDeltaImpl
     {
-        internal AccountStateDeltaImplV0(
+        internal LegacyStateDeltaImplV0(
             AccountStateGetter accountStateGetter,
             AccountBalanceGetter accountBalanceGetter,
             TotalSupplyGetter totalSupplyGetter,
@@ -38,7 +38,7 @@ namespace Libplanet.State
 
         /// <inheritdoc/>
         [Pure]
-        public override IAccountStateDelta TransferAsset(
+        public override ILegacyStateDelta TransferAsset(
             Address sender,
             Address recipient,
             FungibleAssetValue value,
@@ -72,10 +72,10 @@ namespace Libplanet.State
         }
 
         [Pure]
-        protected override AccountStateDeltaImpl UpdateStates(
+        protected override LegacyStateDeltaImpl UpdateStates(
             IImmutableDictionary<Address, IValue> updatedStates
         ) =>
-            new AccountStateDeltaImplV0(
+            new LegacyStateDeltaImplV0(
                 StateGetter,
                 BalanceGetter,
                 TotalSupplyGetter,
@@ -87,10 +87,10 @@ namespace Libplanet.State
             };
 
         [Pure]
-        protected override AccountStateDeltaImpl UpdateFungibleAssets(
+        protected override LegacyStateDeltaImpl UpdateFungibleAssets(
             IImmutableDictionary<(Address, Currency), BigInteger> updatedFungibleAssets
         ) =>
-            new AccountStateDeltaImplV0(
+            new LegacyStateDeltaImplV0(
                 StateGetter,
                 BalanceGetter,
                 TotalSupplyGetter,

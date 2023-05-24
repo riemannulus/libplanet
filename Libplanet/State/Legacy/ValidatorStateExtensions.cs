@@ -1,11 +1,11 @@
 using System;
 using Libplanet.Consensus;
 
-namespace Libplanet.State
+namespace Libplanet.State.Legacy
 {
     public static class ValidatorStateExtensions
     {
-        public static ValidatorSet GetValidatorSet(this IAccountStateDelta delta)
+        public static ValidatorSet GetValidatorSet(this ILegacyStateDelta delta)
         {
             if (delta is IValidatorSupportStateDelta impl)
             {
@@ -19,12 +19,12 @@ namespace Libplanet.State
         /// Sets <paramref name="validator"/> to the stored <see cref="ValidatorSet"/>.
         /// If 0 is given as its power, removes the validator from the <see cref="ValidatorSet"/>.
         /// </summary>
-        /// <param name="delta">The target <see cref="IAccountStateDelta"/> instance.</param>
+        /// <param name="delta">The target <see cref="ILegacyStateDelta"/> instance.</param>
         /// <param name="validator">The <see cref="Validator"/> instance to write.</param>
-        /// <returns>A new <see cref="IAccountStateDelta"/> instance with
+        /// <returns>A new <see cref="ILegacyStateDelta"/> instance with
         /// <paramref name="validator"/> set.</returns>
-        public static IAccountStateDelta SetValidator(
-            this IAccountStateDelta delta,
+        public static ILegacyStateDelta SetValidator(
+            this ILegacyStateDelta delta,
             Validator validator)
         {
             if (delta is IValidatorSupportStateDelta impl)
