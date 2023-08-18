@@ -26,7 +26,6 @@ namespace Libplanet.Tests.Action
         protected readonly PrivateKey[] _keys;
         protected readonly Address[] _addr;
         protected readonly Currency[] _currencies;
-        protected readonly IAccountState _initState;
         protected readonly IAccount _initAccount;
         protected readonly IActionContext _initContext;
 
@@ -52,7 +51,7 @@ namespace Libplanet.Tests.Action
                 Currency.Capped("QUUX", 0, (100, 0), minter: _addr[0]),
             };
 
-            _initState = MockAccountState.Empty
+            _initAccount = new Account(default, new MerkleTrie(new MemoryKeyValueStore()))
                 .SetState(_addr[0], (Text)"a")
                 .SetState(_addr[1], (Text)"b")
                 .SetBalance(_addr[0], _currencies[0], 5)
@@ -60,7 +59,6 @@ namespace Libplanet.Tests.Action
                 .SetBalance(_addr[0], _currencies[3], 5)
                 .SetBalance(_addr[1], _currencies[1], 15)
                 .SetBalance(_addr[1], _currencies[2], 20)
-                .SetTotalSupply(_currencies[3], 5)
                 .SetValidator(new Validator(_keys[0].PublicKey, 1))
                 .SetValidator(new Validator(_keys[1].PublicKey, 1))
                 .SetValidator(new Validator(_keys[2].PublicKey, 1));
@@ -73,24 +71,20 @@ namespace Libplanet.Tests.Action
                     "_addr[{0}]  {1}  {2,3}  {3,3}  {4,3}  {5,3} {6}  {7}",
                     i++,
                     a,
-                    _initState.GetBalance(a, _currencies[0]),
-                    _initState.GetBalance(a, _currencies[1]),
-                    _initState.GetBalance(a, _currencies[2]),
-                    _initState.GetBalance(a, _currencies[3]),
-                    _initState.GetStates(new[] { a })[0],
-                    _initState.GetValidatorSet()
+                    _initAccount.GetBalance(a, _currencies[0]),
+                    _initAccount.GetBalance(a, _currencies[1]),
+                    _initAccount.GetBalance(a, _currencies[2]),
+                    _initAccount.GetBalance(a, _currencies[3]),
+                    _initAccount.GetStates(new[] { a })[0],
+                    _initAccount.GetValidatorSet()
                 );
             }
 
-            _initAccount = CreateInstance(_initState);
             _initContext = CreateContext(
                 _initAccount, _addr[0]);
         }
 
         public abstract int ProtocolVersion { get; }
-
-        public virtual IAccount CreateInstance(IAccountState state) =>
-            Account.Create(state);
 
         public abstract IActionContext CreateContext(
             IAccount delta,
@@ -279,7 +273,7 @@ namespace Libplanet.Tests.Action
             delta0 = delta0.MintAsset(context0, _addr[2], Value(2, 10));
             Assert.Equal(Value(2, 10), delta0.GetBalance(_addr[2], _currencies[2]));
 
-            IAccount delta1 = CreateInstance(_initState);
+            IAccount delta1 = _initAccount;
             IActionContext context1 = CreateContext(delta1, _addr[1]);
             // currencies[0] (FOO) disallows _addr[1] to mint
             Assert.Throws<CurrencyPermissionException>(() =>
@@ -321,7 +315,7 @@ namespace Libplanet.Tests.Action
             delta0 = delta0.BurnAsset(context0, _addr[1], Value(2, 10));
             Assert.Equal(Value(2, 10), delta0.GetBalance(_addr[1], _currencies[2]));
 
-            IAccount delta1 = CreateInstance(_initState);
+            IAccount delta1 = _initAccount;
             IActionContext context1 = CreateContext(delta1, _addr[1]);
             // currencies[0] (FOO) disallows _addr[1] to burn
             Assert.Throws<CurrencyPermissionException>(() =>

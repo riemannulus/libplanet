@@ -35,7 +35,7 @@ namespace Libplanet.Store.Trie
         /// An <see cref="ITrie"/> implementation.
         /// </summary>
         /// <param name="keyValueStore">The <see cref="IKeyValueStore"/> storage to store
-        /// nodes.</param>
+        /// nodes.</para>
         /// <param name="rootHash">The root <see cref="ITrie.Hash"/> of
         /// <see cref="MerkleTrie"/>.</param>
         /// <param name="secure">Whether to use <see cref="MerkleTrie"/> in
