@@ -83,6 +83,7 @@ namespace Libplanet.Net
             _logger = Log
                 .ForContext<Swarm>()
                 .ForContext("Source", nameof(Swarm))
+                .ForContext("Method", System.Reflection.MethodBase.GetCurrentMethod()?.Name)
                 .ForContext("SwarmId", loggerId);
 
             Options = options ?? new SwarmOptions();
