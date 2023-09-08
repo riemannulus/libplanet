@@ -9,7 +9,7 @@ namespace Libplanet.Action.State
 {
     public class AccountStateCache
     {
-        public const int CacheSize = 4_000;
+        public const int CacheSize = 16_000;
         public const int ReportPeriod = 1_000;
 
         private readonly LruCache<Address, IValue?> _cache;

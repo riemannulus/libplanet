@@ -8,6 +8,7 @@ using Bencodex.Types;
 using Libplanet.Common;
 using Libplanet.Store.Trie;
 using Libplanet.Store.Trie.Nodes;
+using Serilog;
 
 namespace Libplanet.Store
 {
@@ -39,7 +40,8 @@ namespace Libplanet.Store
                         new KeyBytes(SHA256.Create().ComputeHash(serialized)), serialized);
                 }
 
-                writeBatch.Flush();
+                var count = writeBatch.Flush();
+                Log.Debug("[Commit] Wrote {Count} values to database", count);
 
                 return new MerkleTrie(StateKeyValueStore, newRoot);
             }
@@ -131,12 +133,14 @@ namespace Libplanet.Store
             private readonly IKeyValueStore _store;
             private readonly int _batchSize;
             private readonly Dictionary<KeyBytes, byte[]> _batch;
+            private int _writeCount;
 
             public WriteBatch(IKeyValueStore store, int batchSize)
             {
                 _store = store;
                 _batchSize = batchSize;
                 _batch = new Dictionary<KeyBytes, byte[]>(_batchSize);
+                _writeCount = 0;
             }
 
             public bool ContainsKey(KeyBytes key) => _batch.ContainsKey(key);
@@ -151,10 +155,12 @@ namespace Libplanet.Store
                 }
             }
 
-            public void Flush()
+            public int Flush()
             {
                 _store.Set(_batch);
+                _writeCount += _batch.Count;
                 _batch.Clear();
+                return _writeCount;
             }
         }
     }

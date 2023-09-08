@@ -106,9 +106,16 @@ namespace Libplanet.Blockchain
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 evaluations = EvaluateBlock(block);
+                _logger.Debug(
+                    "[DBSRH] Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
+                    "pre-evaluation hash {PreEvaluationHash}",
+                    stopwatch.ElapsedMilliseconds,
+                    block.Index,
+                    block.PreEvaluationHash);
+                stopwatch.Restart();
                 var totalDelta = evaluations.GetRawTotalDelta();
                 _logger.Debug(
-                    "Took {DurationMs} ms to summarize the states delta with {KeyCount} key " +
+                    "[DBSRH] Took {DurationMs} ms to summarize delta with {KeyCount} key " +
                     "changes made by block #{BlockIndex} pre-evaluation hash {PreEvaluationHash}",
                     stopwatch.ElapsedMilliseconds,
                     totalDelta.Count,
@@ -118,14 +125,28 @@ namespace Libplanet.Blockchain
                 ITrie trie = GetAccountState(block.PreviousHash).Trie;
                 if (_blockChainStates is BlockChainStates impl)
                 {
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
                     AccountStateCache nextCache =
                         Store.GetStateRootHash(block.PreviousHash) is { } prevStateRootHash
                             ? impl.GetAccountStateCache(prevStateRootHash).Copy()
                             : new AccountStateCache();
+
+                    _logger.Debug(
+                        "[DBSRH] Took {DurationMs} ms to copy previous cache for {PreviousHash}",
+                        sw.ElapsedMilliseconds,
+                        block.PreviousHash);
+
+                    sw.Restart();
                     foreach (var kv in totalDelta)
                     {
                         trie = trie.Set(kv.Key, kv.Value);
                     }
+
+                    _logger.Debug(
+                        "[DBSRH] Took {DurationMs} ms to set {Count} values to trie",
+                        sw.ElapsedMilliseconds,
+                        totalDelta.Count);
 
                     foreach (var eval in evaluations)
                     {
@@ -135,7 +156,13 @@ namespace Libplanet.Blockchain
                         }
                     }
 
+                    sw.Restart();
                     trie = StateStore.Commit(trie);
+                    _logger.Debug(
+                        "[DBSRH] Took {DurationMs} ms to commit {Count} values to trie",
+                        sw.ElapsedMilliseconds,
+                        totalDelta.Count);
+
                     impl.AddAccountStateCache(trie.Hash, nextCache);
                 }
                 else
