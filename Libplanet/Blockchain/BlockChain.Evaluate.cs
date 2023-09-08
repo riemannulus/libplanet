@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Action;
 using Libplanet.Action.Loader;
+using Libplanet.Action.State;
 using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store;
@@ -115,12 +116,38 @@ namespace Libplanet.Blockchain
                     block.PreEvaluationHash);
 
                 ITrie trie = GetAccountState(block.PreviousHash).Trie;
-                foreach (var kv in totalDelta)
+                if (_blockChainStates is BlockChainStates impl)
                 {
-                    trie = trie.Set(kv.Key, kv.Value);
+                    AccountStateCache nextCache =
+                        Store.GetStateRootHash(block.PreviousHash) is { } prevStateRootHash
+                            ? impl.GetAccountStateCache(prevStateRootHash).Copy()
+                            : new AccountStateCache();
+                    foreach (var kv in totalDelta)
+                    {
+                        trie = trie.Set(kv.Key, kv.Value);
+                    }
+
+                    foreach (var eval in evaluations)
+                    {
+                        foreach (var pair in eval.OutputState.Delta.States)
+                        {
+                            nextCache.AddOrUpdate(pair.Key, pair.Value);
+                        }
+                    }
+
+                    trie = StateStore.Commit(trie);
+                    impl.AddAccountStateCache(trie.Hash, nextCache);
+                }
+                else
+                {
+                    foreach (var kv in totalDelta)
+                    {
+                        trie = trie.Set(kv.Key, kv.Value);
+                    }
+
+                    trie = StateStore.Commit(trie);
                 }
 
-                trie = StateStore.Commit(trie);
                 HashDigest<SHA256> rootHash = trie.Hash;
                 _logger
                     .ForContext("Tag", "Metric")

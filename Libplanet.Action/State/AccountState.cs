@@ -14,13 +14,18 @@ namespace Libplanet.Action.State
     /// </summary>
     public class AccountState : IAccountState
     {
-        private ITrie _trie;
-        private AccountStateCache _cache;
+        private readonly ITrie _trie;
+        private readonly AccountStateCache _cache;
 
         public AccountState(ITrie trie)
+            : this(trie, new AccountStateCache())
+        {
+        }
+
+        public AccountState(ITrie trie, AccountStateCache cache)
         {
             _trie = trie;
-            _cache = new AccountStateCache();
+            _cache = cache;
         }
 
         /// <inheritdoc cref="IAccountState.Trie"/>

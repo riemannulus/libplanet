@@ -7,21 +7,28 @@ using Serilog;
 
 namespace Libplanet.Action.State
 {
-    internal class AccountStateCache
+    public class AccountStateCache
     {
-        public const int CacheSize = 1_000;
+        public const int CacheSize = 4_000;
         public const int ReportPeriod = 1_000;
 
-        private LruCache<Address, IValue?> _cache;
+        private readonly LruCache<Address, IValue?> _cache;
         private int _getAttempts;
         private int _getSuccesses;
 
         public AccountStateCache()
+            : this(new LruCache<Address, IValue?>(CacheSize))
         {
-            _cache = new LruCache<Address, IValue?>(CacheSize);
+        }
+
+        private AccountStateCache(LruCache<Address, IValue?> cache)
+        {
+            _cache = cache;
             _getAttempts = 0;
             _getSuccesses = 0;
         }
+
+        public int Count => _cache.Count;
 
         public bool TryGetValue(Address address, out IValue? value)
         {
@@ -70,6 +77,24 @@ namespace Libplanet.Action.State
             foreach ((Address a, IValue? v) in bulk)
             {
                 AddOrUpdate(a, v);
+            }
+        }
+
+        public AccountStateCache Copy()
+        {
+            if (_cache.Count > 0)
+            {
+                var cache = new LruCache<Address, IValue?>(CacheSize);
+                foreach (var kv in _cache)
+                {
+                    cache.AddOrUpdate(kv.Key, kv.Value);
+                }
+
+                return new AccountStateCache(cache);
+            }
+            else
+            {
+                return new AccountStateCache();
             }
         }
     }

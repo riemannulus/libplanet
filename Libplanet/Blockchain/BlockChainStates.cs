@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Action.State;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store;
 using Libplanet.Store.Trie;
@@ -18,11 +20,13 @@ namespace Libplanet.Blockchain
     {
         private readonly IStore _store;
         private readonly IStateStore _stateStore;
+        private readonly BlockChainStatesCache _cache;
 
         public BlockChainStates(IStore store, IStateStore stateStore)
         {
             _store = store;
             _stateStore = stateStore;
+            _cache = new BlockChainStatesCache();
         }
 
         /// <inheritdoc cref="IBlockChainStates.GetState"/>
@@ -49,8 +53,36 @@ namespace Libplanet.Blockchain
             GetAccountState(offset).GetValidatorSet();
 
         /// <inheritdoc cref="IBlockChainStates.GetAccountState"/>
-        public IAccountState GetAccountState(BlockHash? offset) =>
-            new AccountState(GetTrie(offset));
+        public IAccountState GetAccountState(BlockHash? offset)
+        {
+            if (_store.GetStateRootHash(offset) is { } hash)
+            {
+                return new AccountState(GetTrie(offset), GetAccountStateCache(hash));
+            }
+            else
+            {
+                return new AccountState(GetTrie(offset));
+            }
+        }
+
+        public void AddAccountStateCache(HashDigest<SHA256> hash, AccountStateCache cache)
+        {
+            _cache.AddOrUpdate(hash, cache);
+        }
+
+        public AccountStateCache GetAccountStateCache(HashDigest<SHA256> hash)
+        {
+            if (_cache.TryGetValue(hash, out var cache))
+            {
+                return cache;
+            }
+            else
+            {
+                var newCache = new AccountStateCache();
+                _cache.AddOrUpdate(hash, newCache);
+                return newCache;
+            }
+        }
 
         /// <summary>
         /// Returns the state root associated with <see cref="BlockHash"/>
