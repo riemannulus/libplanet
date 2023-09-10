@@ -5,25 +5,33 @@ namespace Libplanet.Store.Trie
 {
     public partial class MerkleTrie
     {
-        private IValue? ResolveToValue(INode? node, in PathCursor cursor) =>
-            node switch
+        private IValue? ResolveToValue(INode? node, in PathCursor cursor)
+        {
+            switch (node)
             {
-                null => null,
-                ValueNode valueNode => valueNode.Value,
-                ShortNode shortNode => cursor.RemainingNibblesStartWith(shortNode.Key)
-                    ? ResolveToValue(shortNode.Value, cursor.Next(shortNode.Key.Length))
-                    : null,
-                FullNode fullNode => cursor.RemainingAnyNibbles
+                case null:
+                    return null;
+                case ValueNode valueNode:
+                    return valueNode.Value;
+                case ShortNode shortNode:
+                    return cursor.RemainingNibblesStartWith(shortNode.Key)
+                        ? ResolveToValue(shortNode.Value, cursor.Next(shortNode.Key.Length))
+                        : null;
+                case FullNode fullNode:
+                    return cursor.RemainingAnyNibbles
                     ? ResolveToValue(
                         fullNode.Children[cursor.NextNibble],
                         cursor.Next(1))
                     : ResolveToValue(
                         fullNode.Value,
-                        cursor),
-                HashNode hashNode => ResolveToValue(UnhashNode(hashNode), cursor),
-                _ => throw new InvalidTrieNodeException(
-                    $"Invalid node value: {node.ToBencodex().Inspect(false)}"),
-            };
+                        cursor);
+                case HashNode hashNode:
+                    return ResolveToValue(UnhashNode(hashNode), cursor);
+                default:
+                    throw new InvalidTrieNodeException(
+                        $"Invalid node value: {node.ToBencodex().Inspect(false)}");
+            }
+        }
 
         private INode? ResolveToNode(INode? node, in PathCursor cursor)
         {
