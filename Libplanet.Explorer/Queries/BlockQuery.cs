@@ -1,6 +1,9 @@
 #nullable disable
+using System.Linq;
+using System.Security.Cryptography;
 using GraphQL;
 using GraphQL.Types;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Explorer.GraphTypes;
 using Libplanet.Types.Blocks;
@@ -72,6 +75,25 @@ namespace Libplanet.Explorer.Queries
                     }
 
                     throw new GraphQL.ExecutionError("Unexpected block query");
+                }
+            );
+
+            Field<NonNullGraphType<ListGraphType<NonNullGraphType<DiffValueType>>>>(
+                "diff",
+                arguments: new QueryArguments(
+                    new QueryArgument<IdGraphType> { Name = "source" },
+                    new QueryArgument<IdGraphType> { Name = "target" }),
+                resolve: context =>
+                {
+                    string source = context.GetArgument<string>("source");
+                    string target = context.GetArgument<string>("target");
+
+                    var sourceTrie =
+                        ExplorerQuery.GetTrieByHash(HashDigest<SHA256>.FromString(source));
+                    var targetTrie =
+                        ExplorerQuery.GetTrieByHash(HashDigest<SHA256>.FromString(target));
+                    return sourceTrie.Diff(targetTrie)
+                        .Select(dv => new DiffValue(dv.Path, dv.TargetValue, dv.SourceValue));
                 }
             );
 

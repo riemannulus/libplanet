@@ -2,15 +2,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using GraphQL.Types;
 using Libplanet.Action.State;
 using Libplanet.Blockchain;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Explorer.GraphTypes;
 using Libplanet.Explorer.Indexing;
 using Libplanet.Explorer.Interfaces;
 using Libplanet.Explorer.Store;
 using Libplanet.Store;
+using Libplanet.Store.Trie;
 using Libplanet.Types.Blocks;
 using Libplanet.Types.Tx;
 
@@ -190,6 +193,9 @@ namespace Libplanet.Explorer.Queries
         internal static Block GetBlockByHash(BlockHash hash) => Store.GetBlock(hash);
 
         internal static Block GetBlockByIndex(long index) => Chain[index];
+
+        internal static ITrie GetTrieByHash(HashDigest<SHA256> stateRootHash) =>
+            Chain.StateStore.GetStateRoot(stateRootHash);
 
         internal static Transaction GetTransaction(TxId id) => Chain.GetTransaction(id);
 
