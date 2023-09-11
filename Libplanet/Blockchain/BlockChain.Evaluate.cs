@@ -140,11 +140,11 @@ namespace Libplanet.Blockchain
                     sw.Restart();
                     foreach (var kv in totalDelta)
                     {
-                        trie = trie.Set(kv.Key, kv.Value);
+                        trie = StateStore.Commit(trie.Set(kv.Key, kv.Value));
                     }
 
                     _logger.Debug(
-                        "[DBSRH] Took {DurationMs} ms to set {Count} values to trie",
+                        "[DBSRH] Took {DurationMs} ms to set and commit {Count} values to trie",
                         sw.ElapsedMilliseconds,
                         totalDelta.Count);
 
@@ -155,13 +155,6 @@ namespace Libplanet.Blockchain
                             nextCache.AddOrUpdate(pair.Key, pair.Value);
                         }
                     }
-
-                    sw.Restart();
-                    trie = StateStore.Commit(trie);
-                    _logger.Debug(
-                        "[DBSRH] Took {DurationMs} ms to commit {Count} values to trie",
-                        sw.ElapsedMilliseconds,
-                        totalDelta.Count);
 
                     impl.AddAccountStateCache(trie.Hash, nextCache);
                 }
