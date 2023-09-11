@@ -1,4 +1,5 @@
 #nullable disable
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 using GraphQL;
@@ -7,6 +8,7 @@ using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Explorer.GraphTypes;
 using Libplanet.Types.Blocks;
+using Serilog;
 
 namespace Libplanet.Explorer.Queries
 {
@@ -92,7 +94,17 @@ namespace Libplanet.Explorer.Queries
                         ExplorerQuery.GetTrieByHash(HashDigest<SHA256>.FromString(source));
                     var targetTrie =
                         ExplorerQuery.GetTrieByHash(HashDigest<SHA256>.FromString(target));
-                    return sourceTrie.Diff(targetTrie)
+                    Stopwatch stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    var intermediate = sourceTrie
+                        .Diff(targetTrie)
+                        .ToList();
+                    Log.Debug(
+                        "[DiffTimer] Took {DurationMs} ms to calculate diff " +
+                        "with {Count} diff values",
+                        stopwatch.ElapsedMilliseconds,
+                        intermediate.Count);
+                    return intermediate
                         .Select(dv => new DiffValue(dv.Path, dv.TargetValue, dv.SourceValue));
                 }
             );
