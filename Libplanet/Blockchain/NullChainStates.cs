@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using Bencodex.Types;
 using Libplanet.Action.State;
 using Libplanet.Crypto;
+using Libplanet.Store;
 using Libplanet.Store.Trie;
 using Libplanet.Types.Assets;
 using Libplanet.Types.Blocks;
@@ -17,6 +19,10 @@ namespace Libplanet.Blockchain
         private NullChainStates()
         {
         }
+
+        public IStore Store => throw new NotSupportedException();
+
+        public IStateStore StateStore => throw new NotSupportedException();
 
         public IValue? GetState(
             Address address, BlockHash? offset) =>

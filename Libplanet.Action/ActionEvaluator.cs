@@ -387,7 +387,10 @@ namespace Libplanet.Action
             {
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
-                delta = Account.Flush(delta);
+                delta = new Account(
+                    _blockChainStates.StateStore.Commit(delta.Trie),
+                    new AccountDelta(),
+                    ((Account)delta).TotalUpdatedFungibles);
 
                 IEnumerable<ActionEvaluation> evaluations = EvaluateTx(
                     blockHeader: block,

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -14,6 +15,7 @@ using Libplanet.Types.Assets;
 using Libplanet.Types.Blocks;
 using Libplanet.Types.Consensus;
 using Libplanet.Explorer.Queries;
+using Libplanet.Store;
 using Libplanet.Store.Trie;
 using Xunit;
 using static Libplanet.Explorer.Tests.GraphQLTestUtils;
@@ -175,6 +177,10 @@ public class StateQueryTest
 
     private class MockChainStates : IBlockChainStates
     {
+        public IStore Store => throw new NotSupportedException();
+
+        public IStateStore StateStore => throw new NotSupportedException();
+
         public IValue GetState(Address address, BlockHash? offset) =>
             GetAccountState(offset).GetState(address);
 

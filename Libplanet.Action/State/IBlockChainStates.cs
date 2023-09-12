@@ -16,6 +16,10 @@ namespace Libplanet.Action.State
     /// </summary>
     public interface IBlockChainStates
     {
+        IStore Store { get; }
+
+        IStateStore StateStore { get; }
+
         /// <summary>
         /// Gets a state associated to specified <paramref name="address"/>.
         /// </summary>

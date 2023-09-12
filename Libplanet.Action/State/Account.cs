@@ -23,12 +23,12 @@ namespace Libplanet.Action.State
         {
         }
 
-        private Account(ITrie trie, IAccountDelta delta)
+        internal Account(ITrie trie, IAccountDelta delta)
             : this(trie, delta, ImmutableDictionary<(Address, Currency), BigInteger>.Empty)
         {
         }
 
-        private Account(
+        internal Account(
             ITrie trie,
             IAccountDelta delta,
             IImmutableDictionary<(Address, Currency), BigInteger> totalUpdatedFungibles)

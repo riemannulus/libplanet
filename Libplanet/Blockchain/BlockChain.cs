@@ -257,9 +257,9 @@ namespace Libplanet.Blockchain
         /// </returns>
         public long Count => Store.CountIndex(Id);
 
-        internal IStore Store { get; }
+        public IStore Store { get; }
 
-        internal IStateStore StateStore { get; }
+        public IStateStore StateStore { get; }
 
         internal IActionEvaluator ActionEvaluator { get; }
 
