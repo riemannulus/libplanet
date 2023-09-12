@@ -107,28 +107,19 @@ namespace Libplanet.Blockchain
                 stopwatch.Start();
                 evaluations = EvaluateBlock(block);
                 _logger.Debug(
-                    "Took {DurationMs} ms to summarize the states delta " +
-                    "changes made by block #{BlockIndex} pre-evaluation hash {PreEvaluationHash}",
+                    "[DBSRH] Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
+                    "pre-evaluation hash {PreEvaluationHash}",
                     stopwatch.ElapsedMilliseconds,
                     block.Index,
                     block.PreEvaluationHash);
                 if (evaluations.Count > 0)
                 {
+                    stopwatch.Restart();
                     ITrie stateRoot = StateStore.Commit(evaluations.Last().OutputState.Trie);
-                    HashDigest<SHA256> rootHash = stateRoot.Hash;
-                    _logger
-                        .ForContext("Tag", "Metric")
-                        .ForContext("Subtag", "StateUpdateDuration")
-                        .Information(
-                            "Took {DurationMs} ms to update the states " +
-                            "and resulting in state root hash {StateRootHash} for " +
-                            "block #{BlockIndex} pre-evaluation hash {PreEvaluationHash}",
-                            stopwatch.ElapsedMilliseconds,
-                            rootHash,
-                            block.Index,
-                            block.PreEvaluationHash);
-
-                    return rootHash;
+                    _logger.Debug(
+                        "[DBSRH] Took {DurationMs} ms to commit evaluated trie",
+                        stopwatch.ElapsedMilliseconds);
+                    return stateRoot.Hash;
                 }
                 else
                 {
