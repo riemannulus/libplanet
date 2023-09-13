@@ -106,28 +106,34 @@ namespace Libplanet.Blockchain
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 evaluations = EvaluateBlock(block);
-                _logger.Debug(
-                    "[DBSRH] Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
-                    "pre-evaluation hash {PreEvaluationHash}",
-                    stopwatch.ElapsedMilliseconds,
-                    block.Index,
-                    block.PreEvaluationHash);
+                _logger
+                    .ForContext("Source", nameof(DetermineBlockStateRootHash))
+                    .Debug(
+                        "Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
+                        "pre-evaluation hash {PreEvaluationHash}",
+                        stopwatch.ElapsedMilliseconds,
+                        block.Index,
+                        block.PreEvaluationHash);
                 if (evaluations.Count > 0)
                 {
                     stopwatch.Restart();
                     ITrie stateRoot = StateStore.Commit(evaluations.Last().OutputState.Trie);
-                    _logger.Debug(
-                        "[DBSRH] Took {DurationMs} ms to commit evaluated trie",
-                        stopwatch.ElapsedMilliseconds);
+                    _logger
+                        .ForContext("Source", nameof(DetermineBlockStateRootHash))
+                        .Debug(
+                            "Took {DurationMs} ms to commit evaluated trie",
+                            stopwatch.ElapsedMilliseconds);
                     return stateRoot.Hash;
                 }
                 else
                 {
-                    _logger.Information(
-                        "Block #{BlockIndex} pre-evaluation hash {PreEvaluationHash} " +
-                        "did not produce any action evaluations",
-                        block.Index,
-                        block.PreEvaluationHash);
+                    _logger
+                        .ForContext("Source", nameof(DetermineBlockStateRootHash))
+                        .Information(
+                            "Block #{BlockIndex} pre-evaluation hash {PreEvaluationHash} " +
+                            "did not produce any action evaluations",
+                            block.Index,
+                            block.PreEvaluationHash);
                     return StateStore.GetStateRoot(Store.GetStateRootHash(block.PreviousHash)).Hash;
                 }
             }
