@@ -91,13 +91,8 @@ namespace Libplanet.Store.Trie
         public IValue? Get(KeyBytes key) => ResolveToValue(Root, new PathCursor(key));
 
         /// <inheritdoc cref="ITrie.Get(IReadOnlyList{KeyBytes})"/>
-        public IReadOnlyList<IValue?> Get(IReadOnlyList<KeyBytes> keys)
-        {
-            const int parallelThreshold = 4;
-            return keys.Count <= parallelThreshold
-                ? keys.Select(key => Get(key)).ToArray()
-                : keys.AsParallel().Select(key => Get(key)).ToArray();
-        }
+        public IReadOnlyList<IValue?> Get(IReadOnlyList<KeyBytes> keys) =>
+            keys.Select(key => Get(key)).ToArray();
 
         /// <inheritdoc cref="ITrie.GetNode(Nibbles)"/>
         public INode? GetNode(Nibbles nibbles) => ResolveToNode(Root, new PathCursor(nibbles));

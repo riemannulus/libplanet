@@ -10,6 +10,8 @@ namespace Libplanet.Action.State
 {
     public class AccountDelta : IAccountDelta
     {
+        public static readonly AccountDelta Empty = new AccountDelta();
+
         public AccountDelta()
         {
             States = ImmutableDictionary<Address, IValue>.Empty;
