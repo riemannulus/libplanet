@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Immutable;
+using System.Numerics;
 using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Common;
 using Libplanet.Crypto;
+using Libplanet.Types.Assets;
 using Libplanet.Types.Tx;
 
 namespace Libplanet.Action
@@ -27,6 +30,8 @@ namespace Libplanet.Action
         
         public bool BlockAction { get; }
         
+        public IImmutableDictionary<(Address, Currency), BigInteger> TotalUpdatedFungibles { get; }
+
         public Exception? Exception { get; }
     }
 }

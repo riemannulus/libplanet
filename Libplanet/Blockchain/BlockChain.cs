@@ -967,6 +967,8 @@ namespace Libplanet.Blockchain
             IReadOnlyList<IActionResult> actionEvaluations = null
         )
         {
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             if (Count == 0)
             {
                 throw new ArgumentException(
@@ -1134,11 +1136,22 @@ namespace Libplanet.Blockchain
                         block.Index,
                         block.Hash);
                 }
+
+                stopwatch.Stop();
             }
             finally
             {
                 _rwlock.ExitUpgradeableReadLock();
             }
+
+            _logger
+                .ForContext("Tag", "Metric")
+                .ForContext("Subtag", "BlockAppendElapsed")
+                .Information(
+                    "Block #{BlockIndex} {BlockHash} is appended in {Elapsed} ms",
+                    block.Index,
+                    block.Hash,
+                    stopwatch.ElapsedMilliseconds);
         }
 #pragma warning restore MEN003
 

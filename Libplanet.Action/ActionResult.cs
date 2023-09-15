@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Immutable;
+using System.Numerics;
 using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Common;
 using Libplanet.Crypto;
+using Libplanet.Types.Assets;
 using Libplanet.Types.Tx;
 
 namespace Libplanet.Action
@@ -19,6 +22,7 @@ namespace Libplanet.Action
             HashDigest<SHA256> previousRootHash,
             HashDigest<SHA256> outputRootHash,
             bool blockAction,
+            IImmutableDictionary<(Address,Currency), BigInteger> totalUpdatedFungibles,
             Exception? exception = null)
         {
             Action = action;
@@ -30,10 +34,13 @@ namespace Libplanet.Action
             PreviousRootHash = previousRootHash;
             OutputRootHash = outputRootHash;
             BlockAction = blockAction;
+            TotalUpdatedFungibles = totalUpdatedFungibles;
             Exception = exception;
         }
 
-        public ActionResult(IActionEvaluation evaluation)
+        public ActionResult(
+            IActionEvaluation evaluation,
+            IImmutableDictionary<(Address, Currency), BigInteger> totalUpdatedFungibles)
             : this(
                 evaluation.Action,
                 evaluation.InputContext.Signer,
@@ -44,6 +51,7 @@ namespace Libplanet.Action
                 evaluation.InputContext.PreviousState.Trie.Hash,
                 evaluation.OutputState.Trie.Hash,
                 evaluation.InputContext.BlockAction,
+                totalUpdatedFungibles,
                 evaluation.Exception)
         {
         }
@@ -82,6 +90,10 @@ namespace Libplanet.Action
             get;
         }
         public bool BlockAction
+        {
+            get;
+        }
+        public IImmutableDictionary<(Address, Currency), BigInteger> TotalUpdatedFungibles
         {
             get;
         }

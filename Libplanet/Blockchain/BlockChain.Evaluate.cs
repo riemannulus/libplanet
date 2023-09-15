@@ -109,7 +109,6 @@ namespace Libplanet.Blockchain
                     stopwatch.ElapsedMilliseconds,
                     block.Index,
                     block.PreEvaluationHash);
-                stopwatch.Restart();
 
                 HashDigest<SHA256> rootHash = evaluations.Any()
                     ? evaluations.Last().OutputRootHash

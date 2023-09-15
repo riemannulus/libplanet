@@ -101,7 +101,10 @@ namespace Libplanet.Action
                 else
                 {
                     previousState = evaluations.Count > 0
-                        ? new Account(_blockChainStates.GetAccountState(evaluations.Last().OutputRootHash)) 
+                        ? new Account(
+                            _blockChainStates.GetAccountState(evaluations.Last().OutputRootHash),
+                            new AccountDelta(),
+                            evaluations.Last().TotalUpdatedFungibles) 
                         : previousState;
                     return evaluations.Add(
                         EvaluatePolicyBlockAction(block, previousState)
@@ -213,14 +216,20 @@ namespace Libplanet.Action
 
                 var delta = result.Evaluation.OutputState.Delta.ToRawDelta();
                 ITrie trie = blockChainStates.Commit(result.Evaluation.OutputState.Trie, delta);
+                var fungibles = Account.GetUpdatedTotalFungibles(result.Evaluation.OutputState);
                 ActionEvaluation evaluation = new ActionEvaluation(
                     result.Evaluation.Action,
                     result.Evaluation.InputContext,
-                    new Account(blockChainStates.GetAccountState(trie.Hash), result.Evaluation.OutputState.Delta),
+                    new Account(
+                        new AccountState(trie),
+                        result.Evaluation.OutputState.Delta,
+                        fungibles),
                     result.Evaluation.Exception
                 );
 
-                yield return new ActionResult(evaluation);
+                yield return new ActionResult(
+                    evaluation,
+                    fungibles);
 
                 state = evaluation.OutputState;
                 gasLimit = result.NextGasLimit;
@@ -398,7 +407,6 @@ namespace Libplanet.Action
             {
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
-                delta = Account.Flush(delta);
 
                 IEnumerable<ActionResult> evaluations = EvaluateTx(
                     blockHeader: block,
@@ -409,7 +417,10 @@ namespace Libplanet.Action
                 foreach (ActionResult evaluation in evaluations)
                 {
                     yield return evaluation;
-                    delta = new Account(_blockChainStates.GetAccountState(evaluation.OutputRootHash));
+                    delta = new Account(
+                        _blockChainStates.GetAccountState(evaluation.OutputRootHash),
+                        new AccountDelta(),
+                        evaluation.TotalUpdatedFungibles);
                     actions.Add(_actionLoader.LoadAction(block.Index, evaluation.Action));
                 }
 

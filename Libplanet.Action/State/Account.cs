@@ -30,7 +30,7 @@ namespace Libplanet.Action.State
         {
         }
 
-        private Account(
+        internal Account(
             IAccountState baseState,
             IAccountDelta delta,
             IImmutableDictionary<(Address, Currency), BigInteger> totalUpdatedFungibles)
@@ -241,6 +241,13 @@ namespace Libplanet.Action.State
                 ? new Account(impl, new AccountDelta(), impl.TotalUpdatedFungibles)
                 : throw new ArgumentException(
                     $"Unknown type for {nameof(account)}: {account.GetType()}");
+
+        internal static IImmutableDictionary<(Address, Currency), BigInteger>
+            GetUpdatedTotalFungibles(IAccount account) =>
+            account is Account impl
+                ? impl.TotalUpdatedFungibles
+                : throw new ArgumentException(
+                    $"Unknown type for {nameof(account)}: {account.GetType()}");       
 
         [Pure]
         private Account UpdateState(
