@@ -29,6 +29,6 @@ namespace Libplanet.Action
         /// the end.</para>
         /// </remarks>
         [Pure]
-        IReadOnlyList<IActionEvaluation> Evaluate(IPreEvaluationBlock block);
+        IReadOnlyList<IActionResult> Evaluate(IPreEvaluationBlock block);
     }
 }

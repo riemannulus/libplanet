@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Security.Cryptography;
 using Bencodex.Types;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store;
 using Libplanet.Store.Trie;
@@ -154,5 +157,9 @@ namespace Libplanet.Action.State
         /// </exception>
         /// <seealso cref="IAccountState"/>
         IAccountState GetAccountState(BlockHash? offset);
+        
+        IAccountState GetAccountState(HashDigest<SHA256>? stateRootHash);
+
+        ITrie Commit(ITrie trie);
     }
 }

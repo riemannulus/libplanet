@@ -174,7 +174,7 @@ namespace Libplanet.Blockchain
                 foreach (BlockHash hash in fastForwardPath)
                 {
                     Block block = Store.GetBlock(hash);
-                    ImmutableList<IActionEvaluation> evaluations =
+                    ImmutableList<IActionResult> evaluations =
                         ActionEvaluator.Evaluate(block).ToImmutableList();
 
                     count += RenderActions(
@@ -203,7 +203,7 @@ namespace Libplanet.Blockchain
         /// <param name="block"><see cref="Block"/> to render actions.</param>
         /// <returns>The number of actions rendered.</returns>
         internal long RenderActions(
-            IReadOnlyList<IActionEvaluation> evaluations,
+            IReadOnlyList<IActionResult> evaluations,
             Block block)
         {
             Stopwatch stopwatch = new Stopwatch();
@@ -221,7 +221,7 @@ namespace Libplanet.Blockchain
             long count = 0;
             foreach (var evaluation in evaluations)
             {
-                if (evaluation.InputContext.BlockAction && Policy.BlockAction is null)
+                if (evaluation.BlockAction && Policy.BlockAction is null)
                 {
                     continue;
                 }
@@ -232,14 +232,14 @@ namespace Libplanet.Blockchain
                     {
                         renderer.RenderAction(
                             evaluation.Action,
-                            evaluation.InputContext.GetUnconsumedContext(),
-                            evaluation.OutputState);
+                            null,
+                            null);
                     }
                     else
                     {
                         renderer.RenderActionError(
                             evaluation.Action,
-                            evaluation.InputContext.GetUnconsumedContext(),
+                            null,
                             evaluation.Exception);
                     }
 

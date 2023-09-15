@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Action.State;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store;
 using Libplanet.Store.Trie;
@@ -52,9 +54,17 @@ namespace Libplanet.Blockchain
         public ValidatorSet GetValidatorSet(BlockHash? offset) =>
             GetAccountState(offset).GetValidatorSet();
 
-        /// <inheritdoc cref="IBlockChainStates.GetAccountState"/>
-        public IAccountState GetAccountState(BlockHash? offset) =>
-            new Account(GetTrie(offset));
+        /// <inheritdoc cref="IBlockChainStates.GetAccountState(BlockHash?)"/>
+        public IAccountState GetAccountState(BlockHash? offset)
+        {
+            return new Account(GetTrie(offset));
+        }
+
+        public IAccountState GetAccountState(HashDigest<SHA256>? stateRootHash) =>
+                new Account(GetTrie(stateRootHash));
+
+        public ITrie Commit(ITrie trie) =>
+            _stateStore.Commit(trie);
 
         /// <summary>
         /// Returns the state root associated with <see cref="BlockHash"/>
@@ -106,6 +116,11 @@ namespace Libplanet.Blockchain
                     $"Could not find block hash {hash} in {nameof(IStore)}.",
                     nameof(offset));
             }
+        }
+
+        private ITrie GetTrie(HashDigest<SHA256>? stateRootHash)
+        {
+            return _stateStore.GetStateRoot(stateRootHash);
         }
     }
 }

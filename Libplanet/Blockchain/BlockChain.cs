@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using Bencodex.Types;
 using Libplanet.Action;
@@ -16,6 +17,7 @@ using Libplanet.Blockchain.Renderers;
 using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store;
+using Libplanet.Store.Trie;
 using Libplanet.Types.Assets;
 using Libplanet.Types.Blocks;
 using Libplanet.Types.Consensus;
@@ -383,7 +385,7 @@ namespace Libplanet.Blockchain
             var computedStateRootHash = DetermineGenesisStateRootHash(
                 actionEvaluator,
                 preEval,
-                out IReadOnlyList<IActionEvaluation> evals);
+                out IReadOnlyList<IActionResult> evals);
             if (!genesisBlock.StateRootHash.Equals(computedStateRootHash))
             {
                 throw new InvalidBlockStateRootHashException(
@@ -412,9 +414,6 @@ namespace Libplanet.Blockchain
             }
 
             store.SetCanonicalChainId(id);
-
-            var delta = evals.GetRawTotalDelta();
-            stateStore.Commit(null, delta);
 
             blockChainStates ??= new BlockChainStates(store, stateStore);
 
@@ -560,9 +559,15 @@ namespace Libplanet.Blockchain
         public ValidatorSet GetValidatorSet(BlockHash? offset) =>
             _blockChainStates.GetValidatorSet(offset);
 
-        /// <inheritdoc cref="IBlockChainStates.GetAccountState" />
+        /// <inheritdoc cref="IBlockChainStates.GetAccountState(BlockHash?)" />
         public IAccountState GetAccountState(BlockHash? offset) =>
             _blockChainStates.GetAccountState(offset);
+
+        public IAccountState GetAccountState(HashDigest<SHA256>? stateRootHash) =>
+            _blockChainStates.GetAccountState(stateRootHash);
+
+        public ITrie Commit(ITrie trie) =>
+            _blockChainStates.Commit(trie);
 
         /// <summary>
         /// Queries the recorded <see cref="TxExecution"/> for a successful or failed
@@ -959,7 +964,7 @@ namespace Libplanet.Blockchain
             Block block,
             BlockCommit blockCommit,
             bool render,
-            IReadOnlyList<IActionEvaluation> actionEvaluations = null
+            IReadOnlyList<IActionResult> actionEvaluations = null
         )
         {
             if (Count == 0)
@@ -1041,9 +1046,6 @@ namespace Libplanet.Blockchain
                                 TimestampFormat, CultureInfo.InvariantCulture));
 
                     _blocks[block.Hash] = block;
-                    IEnumerable<TxExecution> txExecutions =
-                        MakeTxExecutions(block, actionEvaluations);
-                    UpdateTxExecutions(txExecutions);
 
                     foreach (KeyValuePair<Address, long> pair in nonceDeltas)
                     {

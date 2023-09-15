@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Security.Cryptography;
-using Bencodex.Types;
 using Libplanet.Action;
 using Libplanet.Action.Loader;
 using Libplanet.Common;
@@ -39,13 +37,12 @@ namespace Libplanet.Blockchain
         public static HashDigest<SHA256> DetermineGenesisStateRootHash(
             IActionEvaluator actionEvaluator,
             IPreEvaluationBlock preEvaluationBlock,
-            out IReadOnlyList<IActionEvaluation> evaluations)
+            out IReadOnlyList<IActionResult> evaluations)
         {
             evaluations = EvaluateGenesis(actionEvaluator, preEvaluationBlock);
-            IImmutableDictionary<KeyBytes, IValue> delta = evaluations.GetRawTotalDelta();
-            IStateStore stateStore = new TrieStateStore(new DefaultKeyValueStore(null));
-            ITrie trie = stateStore.Commit(stateStore.GetStateRoot(null).Hash, delta);
-            return trie.Hash;
+            return evaluations.Any()
+                ? evaluations.Last().OutputRootHash
+                : new TrieStateStore(new DefaultKeyValueStore(null)).GetStateRoot(null).Hash;
         }
 
         /// <summary>
@@ -61,7 +58,7 @@ namespace Libplanet.Blockchain
         /// <exception cref="ArgumentException">Thrown if <paramref name="preEvaluationBlock"/>s
         /// <see cref="IBlockMetadata.Index"/> is not zero.</exception>
         [Pure]
-        public static IReadOnlyList<IActionEvaluation> EvaluateGenesis(
+        public static IReadOnlyList<IActionResult> EvaluateGenesis(
             IActionEvaluator actionEvaluator,
             IPreEvaluationBlock preEvaluationBlock)
         {
@@ -98,7 +95,7 @@ namespace Libplanet.Blockchain
         /// <seealso cref="EvaluateBlock"/>
         /// <seealso cref="ValidateBlockStateRootHash"/>
         public HashDigest<SHA256> DetermineBlockStateRootHash(
-            IPreEvaluationBlock block, out IReadOnlyList<IActionEvaluation> evaluations)
+            IPreEvaluationBlock block, out IReadOnlyList<IActionResult> evaluations)
         {
             _rwlock.EnterWriteLock();
             try
@@ -106,36 +103,30 @@ namespace Libplanet.Blockchain
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 evaluations = EvaluateBlock(block);
+                _logger.Debug(
+                    "[DBSRH] Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
+                    "pre-evaluation hash {PreEvaluationHash}",
+                    stopwatch.ElapsedMilliseconds,
+                    block.Index,
+                    block.PreEvaluationHash);
+                stopwatch.Restart();
+
+                HashDigest<SHA256> rootHash = evaluations.Any()
+                    ? evaluations.Last().OutputRootHash
+                    : StateStore.GetStateRoot(null).Hash;
                 _logger
-                    .ForContext("Source", nameof(DetermineBlockStateRootHash))
-                    .Debug(
-                        "Took {DurationMs} ms to evaluate block #{BlockIndex} with " +
-                        "pre-evaluation hash {PreEvaluationHash}",
+                    .ForContext("Tag", "Metric")
+                    .ForContext("Subtag", "StateUpdateDuration")
+                    .Information(
+                        "Took {DurationMs} ms to update the states " +
+                        "and resulting in state root hash {StateRootHash} for " +
+                        "block #{BlockIndex} pre-evaluation hash {PreEvaluationHash}",
                         stopwatch.ElapsedMilliseconds,
+                        rootHash,
                         block.Index,
                         block.PreEvaluationHash);
-                if (evaluations.Count > 0)
-                {
-                    stopwatch.Restart();
-                    ITrie stateRoot = StateStore.Commit(evaluations.Last().OutputState.Trie);
-                    _logger
-                        .ForContext("Source", nameof(DetermineBlockStateRootHash))
-                        .Debug(
-                            "Took {DurationMs} ms to commit evaluated trie",
-                            stopwatch.ElapsedMilliseconds);
-                    return stateRoot.Hash;
-                }
-                else
-                {
-                    _logger
-                        .ForContext("Source", nameof(DetermineBlockStateRootHash))
-                        .Information(
-                            "Block #{BlockIndex} pre-evaluation hash {PreEvaluationHash} " +
-                            "did not produce any action evaluations",
-                            block.Index,
-                            block.PreEvaluationHash);
-                    return StateStore.GetStateRoot(Store.GetStateRootHash(block.PreviousHash)).Hash;
-                }
+
+                return rootHash;
             }
             finally
             {
@@ -153,7 +144,7 @@ namespace Libplanet.Blockchain
         /// contains an action that cannot be loaded with <see cref="IActionLoader"/>.</exception>
         /// <seealso cref="ValidateBlockStateRootHash"/>
         [Pure]
-        public IReadOnlyList<IActionEvaluation> EvaluateBlock(IPreEvaluationBlock block) =>
+        public IReadOnlyList<IActionResult> EvaluateBlock(IPreEvaluationBlock block) =>
             ActionEvaluator.Evaluate(block);
 
         /// <summary>
