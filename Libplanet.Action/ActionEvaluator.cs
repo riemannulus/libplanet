@@ -11,6 +11,7 @@ using Libplanet.Action.Loader;
 using Libplanet.Action.State;
 using Libplanet.Common;
 using Libplanet.Crypto;
+using Libplanet.Store.Trie;
 using Libplanet.Types.Blocks;
 using Libplanet.Types.Tx;
 using Serilog;
@@ -76,7 +77,7 @@ namespace Libplanet.Action
 
         /// <inheritdoc cref="IActionEvaluator.Evaluate"/>
         [Pure]
-        public IReadOnlyList<IActionEvaluation> Evaluate(IPreEvaluationBlock block)
+        public IReadOnlyList<IActionResult> Evaluate(IPreEvaluationBlock block)
         {
             _logger.Information(
                 "Evaluating actions in the block #{BlockIndex} " +
@@ -89,7 +90,7 @@ namespace Libplanet.Action
             try
             {
                 IAccount previousState = PrepareInitialDelta(block);
-                ImmutableList<ActionEvaluation> evaluations =
+                ImmutableList<ActionResult> evaluations =
                     EvaluateBlock(block, previousState).ToImmutableList();
 
                 var policyBlockAction = _policyBlockActionGetter(block);
@@ -100,7 +101,7 @@ namespace Libplanet.Action
                 else
                 {
                     previousState = evaluations.Count > 0
-                        ? evaluations.Last().OutputState
+                        ? new Account(_blockChainStates.GetAccountState(evaluations.Last().OutputRootHash)) 
                         : previousState;
                     return evaluations.Add(
                         EvaluatePolicyBlockAction(block, previousState)
@@ -163,11 +164,12 @@ namespace Libplanet.Action
         /// </para>
         /// </remarks>
         [Pure]
-        internal static IEnumerable<ActionEvaluation> EvaluateActions(
+        internal static IEnumerable<ActionResult> EvaluateActions(
             IPreEvaluationBlockHeader blockHeader,
             ITransaction? tx,
             IAccount previousState,
             IImmutableList<IAction> actions,
+            IBlockChainStates blockChainStates,
             ILogger? logger = null)
         {
             IActionContext CreateActionContext(
@@ -209,9 +211,18 @@ namespace Libplanet.Action
                     action,
                     logger);
 
-                yield return result.Evaluation;
+                var delta = result.Evaluation.OutputState.Delta.ToRawDelta();
+                ITrie trie = blockChainStates.Commit(result.Evaluation.OutputState.Trie, delta);
+                ActionEvaluation evaluation = new ActionEvaluation(
+                    result.Evaluation.Action,
+                    result.Evaluation.InputContext,
+                    new Account(blockChainStates.GetAccountState(trie.Hash), result.Evaluation.OutputState.Delta),
+                    result.Evaluation.Exception
+                );
 
-                state = result.Evaluation.OutputState;
+                yield return new ActionResult(evaluation);
+
+                state = evaluation.OutputState;
                 gasLimit = result.NextGasLimit;
 
                 unchecked
@@ -373,7 +384,7 @@ namespace Libplanet.Action
         /// where each <see cref="ActionEvaluation"/> is the evaluation of an <see cref="IAction"/>.
         /// </returns>
         [Pure]
-        internal IEnumerable<ActionEvaluation> EvaluateBlock(
+        internal IEnumerable<ActionResult> EvaluateBlock(
             IPreEvaluationBlock block,
             IAccount previousState)
         {
@@ -389,17 +400,17 @@ namespace Libplanet.Action
                 stopwatch.Start();
                 delta = Account.Flush(delta);
 
-                IEnumerable<ActionEvaluation> evaluations = EvaluateTx(
+                IEnumerable<ActionResult> evaluations = EvaluateTx(
                     blockHeader: block,
                     tx: tx,
                     previousState: delta);
 
                 var actions = new List<IAction>();
-                foreach (ActionEvaluation evaluation in evaluations)
+                foreach (ActionResult evaluation in evaluations)
                 {
                     yield return evaluation;
-                    delta = evaluation.OutputState;
-                    actions.Add(evaluation.Action);
+                    delta = new Account(_blockChainStates.GetAccountState(evaluation.OutputRootHash));
+                    actions.Add(_actionLoader.LoadAction(block.Index, evaluation.Action));
                 }
 
                 // FIXME: This is dependant on when the returned value is enumerated.
@@ -422,7 +433,7 @@ namespace Libplanet.Action
         }
 
         [Pure]
-        internal IEnumerable<ActionEvaluation> EvaluateTx(
+        internal IEnumerable<ActionResult> EvaluateTx(
             IPreEvaluationBlockHeader blockHeader,
             ITransaction tx,
             IAccount previousState)
@@ -434,6 +445,7 @@ namespace Libplanet.Action
                 tx: tx,
                 previousState: previousState,
                 actions: actions,
+                blockChainStates: _blockChainStates,
                 logger: _logger);
         }
 
@@ -449,7 +461,7 @@ namespace Libplanet.Action
         /// the <see cref="IBlockPolicy.BlockAction"/> held by the instance
         /// for the <paramref name="blockHeader"/>.</returns>
         [Pure]
-        internal ActionEvaluation EvaluatePolicyBlockAction(
+        internal ActionResult EvaluatePolicyBlockAction(
             IPreEvaluationBlockHeader blockHeader,
             IAccount previousState)
         {
@@ -467,10 +479,13 @@ namespace Libplanet.Action
                 $"{ByteUtil.Hex(blockHeader.PreEvaluationHash.ByteArray)}");
 
             return EvaluateActions(
-                blockHeader: blockHeader,
-                tx: null,
+                blockHeader: blockHeader, tx: null,
                 previousState: previousState,
-                actions: new[] { policyBlockAction }.ToImmutableList()).Single();
+                actions: new[]
+                {
+                    policyBlockAction
+                }.ToImmutableList(),
+                blockChainStates: _blockChainStates).Single();
         }
 
         /// <summary>

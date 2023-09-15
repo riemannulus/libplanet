@@ -1,6 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Action.State;
+using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Store.Trie;
 using Libplanet.Types.Assets;
@@ -38,5 +42,14 @@ namespace Libplanet.Blockchain
 
         public IAccountState GetAccountState(BlockHash? offset) =>
             new AccountState(new MerkleTrie(_keyValueStore));
+
+        public IAccountState GetAccountState(HashDigest<SHA256>? stateRootHash) =>
+            throw new NotSupportedException();
+
+        public ITrie Commit(ITrie trie, IImmutableDictionary<KeyBytes, IValue> rawDelta) =>
+            throw new NotSupportedException();
+
+        public ITrie Commit(ITrie trie) =>
+            throw new NotSupportedException();
     }
 }
