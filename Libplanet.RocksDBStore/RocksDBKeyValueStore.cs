@@ -82,7 +82,9 @@ namespace Libplanet.RocksDBStore
             RocksDBInstanceType type = RocksDBInstanceType.Primary)
         {
             var options = new DbOptions()
-                .SetCreateIfMissing();
+                .SetCreateIfMissing()
+                .SetSoftPendingCompactionBytesLimit(1000000000000)
+                .SetHardPendingCompactionBytesLimit(1038176821042);
 
             _keyValueDb = RocksDBUtils.OpenRocksDb(options, path, type: type);
             Type = type;
