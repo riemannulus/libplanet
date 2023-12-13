@@ -8,7 +8,6 @@ using Bencodex.Types;
 using Libplanet.Common;
 using Libplanet.Store.Trie;
 using Libplanet.Store.Trie.Nodes;
-using Serilog;
 
 namespace Libplanet.Store
 {
@@ -19,8 +18,6 @@ namespace Libplanet.Store
         /// <inheritdoc cref="IStateStore.Commit"/>
         public ITrie Commit(ITrie trie)
         {
-            Log.Information("[TrieCommit] Starting to commit trie...");
-
             // FIXME: StateKeyValueStore used might not be the same as
             // the one referenced by the argument trie.  Some kind of sanity check
             // would be nice, if possible.
@@ -52,7 +49,6 @@ namespace Libplanet.Store
 
         private static INode Commit(INode node, WriteBatch writeBatch, HashNodeCache cache)
         {
-            Log.Information($"[TrieCommit] Committing node {node.ToBencodex()}...");
             switch (node)
             {
                 // NOTE: If it is a hashed node, it has been recorded already.
@@ -76,7 +72,6 @@ namespace Libplanet.Store
         private static INode CommitFullNode(
             FullNode fullNode, WriteBatch writeBatch, HashNodeCache cache)
         {
-            Log.Information($"[TrieCommit] Committing full node {fullNode.ToBencodex()}...");
             var virtualChildren = fullNode.Children
                 .Select(c => c is null ? null : Commit(c, writeBatch, cache))
                 .ToImmutableArray();
@@ -95,8 +90,6 @@ namespace Libplanet.Store
         private static INode CommitShortNode(
             ShortNode shortNode, WriteBatch writeBatch, HashNodeCache cache)
         {
-            Log.Information($"[TrieCommit] Committing short node {shortNode.ToBencodex()}...");
-
             // FIXME: Assumes value is not null.
             var committedValueNode = Commit(shortNode.Value!, writeBatch, cache);
             shortNode = new ShortNode(shortNode.Key, committedValueNode);
@@ -112,8 +105,6 @@ namespace Libplanet.Store
         private static INode CommitValueNode(
             ValueNode valueNode, WriteBatch writeBatch, HashNodeCache cache)
         {
-            Log.Information($"[TrieCommit] Committing value node {valueNode.ToBencodex()}...");
-
             IValue encoded = valueNode.ToBencodex();
             var nodeSize = encoded.EncodingLength;
             if (nodeSize <= HashDigest<SHA256>.Size)
@@ -170,12 +161,8 @@ namespace Libplanet.Store
 
             public void Flush()
             {
-                Log.Information(
-                    $"[WriteBatch] Flushing {_batch.Count} key-value pairs to storage.");
                 _store.Set(_batch);
                 _batch.Clear();
-                Log.Information(
-                    "[WriteBatch] Successfully flushed and cleared.");
             }
         }
     }
