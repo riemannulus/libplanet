@@ -46,6 +46,8 @@ namespace Libplanet.Net.Transports
 
         private CancellationTokenSource _runtimeCancellationTokenSource;
         private CancellationTokenSource _turnCancellationTokenSource;
+        private DiagnosticListener _diagnosticListener;
+        private ActivitySource _activitySource;
 
         // Used only for logging.
         private long _requestCount;
@@ -93,6 +95,8 @@ namespace Libplanet.Net.Transports
             _requests = Channel.CreateUnbounded<MessageRequest>();
             _runtimeCancellationTokenSource = new CancellationTokenSource();
             _turnCancellationTokenSource = new CancellationTokenSource();
+            _diagnosticListener = new DiagnosticListener("Libplanet.Net");
+            _activitySource = new ActivitySource(nameof(NetMQTransport));
             _requestCount = 0;
             CancellationToken runtimeCt = _runtimeCancellationTokenSource.Token;
             _runtimeProcessor = Task.Factory.StartNew(
@@ -293,6 +297,8 @@ namespace Libplanet.Net.Transports
             TimeSpan? timeout,
             CancellationToken cancellationToken)
         {
+            var activity = new Activity(nameof(SendMessageAsync)).SetParentId(Activity.Current.Id);
+            using Activity a = _diagnosticListener.StartActivity(activity, content);
             IEnumerable<Message> replies =
                 await SendMessageAsync(
                     peer,
@@ -320,6 +326,9 @@ namespace Libplanet.Net.Transports
             {
                 throw new ObjectDisposedException(nameof(NetMQTransport));
             }
+
+            var activity = new Activity(nameof(SendMessageAsync)).SetParentId(Activity.Current.Id);
+            using Activity a = _diagnosticListener.StartActivity(activity, content);
 
             using var timerCts = new CancellationTokenSource();
             if (timeout is { } timeoutNotNull)
@@ -488,16 +497,22 @@ namespace Libplanet.Net.Transports
 
             CancellationToken ct = _runtimeCancellationTokenSource.Token;
             List<BoundPeer> boundPeers = peers.ToList();
-            Task.Run(
-                async () =>
-                {
-                    await boundPeers.ParallelForEachAsync(
-                        peer => SendMessageAsync(peer, content, TimeSpan.FromSeconds(1), ct),
-                        ct
-                    );
-                },
-                ct
-            );
+            Activity activity = _activitySource.CreateActivity(
+                nameof(BroadcastMessage),
+                ActivityKind.Producer);
+            using (Activity a = _diagnosticListener.StartActivity(activity, content))
+            {
+                Task.Run(
+                    async () =>
+                    {
+                        await boundPeers.ParallelForEachAsync(
+                            peer => SendMessageAsync(peer, content, TimeSpan.FromSeconds(1), ct),
+                            ct
+                        );
+                    },
+                    ct
+                );
+            }
 
             _logger.Debug(
                 "Broadcasting message {Message} as {AsPeer} to {PeerCount} peers",
