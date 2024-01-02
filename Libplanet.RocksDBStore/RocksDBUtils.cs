@@ -10,6 +10,7 @@ namespace Libplanet.RocksDBStore
             DbOptions options,
             string dbPath,
             ColumnFamilies? columnFamilies = null,
+            string secondaryPath = "",
             RocksDBInstanceType type = RocksDBInstanceType.Primary)
         {
             if (!Directory.Exists(dbPath))
@@ -25,7 +26,7 @@ namespace Libplanet.RocksDBStore
                     ? RocksDb.OpenReadOnly(options, dbPath, false)
                     : RocksDb.OpenReadOnly(options, dbPath, columnFamilies, false),
                 RocksDBInstanceType.Secondary => columnFamilies is null
-                    ? RocksDb.OpenAsSecondary(options, dbPath, CreateSecondaryPath(dbPath))
+                    ? RocksDb.OpenAsSecondary(options, dbPath, CreateSecondaryPath(secondaryPath))
                     : RocksDb.OpenAsSecondary(
                         options,
                         dbPath,

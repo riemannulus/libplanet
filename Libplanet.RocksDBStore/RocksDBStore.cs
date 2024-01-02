@@ -175,8 +175,9 @@ namespace Libplanet.RocksDBStore
             int txEpochUnitSeconds = 86400,
             int blockEpochUnitSeconds = 86400,
             int dbConnectionCacheSize = 100,
-            RocksDBInstanceType type = RocksDBInstanceType.Primary
-        )
+            RocksDBInstanceType type = RocksDBInstanceType.Primary,
+            string secondaryPath = ""
+            )
         {
             _logger = Log.ForContext<RocksDBStore>();
 
@@ -251,7 +252,11 @@ namespace Libplanet.RocksDBStore
             // currently exist in a DB. https://github.com/facebook/rocksdb/wiki/Column-Families
             var chainDbColumnFamilies = GetColumnFamilies(_options, ChainDbName);
             _chainDb = RocksDBUtils.OpenRocksDb(
-                _options, RocksDbPath(ChainDbName), chainDbColumnFamilies, _instanceType);
+                _options,
+                RocksDbPath(ChainDbName),
+                chainDbColumnFamilies,
+                secondaryPath,
+                _instanceType);
 
             _rwTxLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
             _rwBlockLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
@@ -1372,6 +1377,7 @@ namespace Libplanet.RocksDBStore
             int txEpochUnitSeconds = query.GetInt32("tx-epoch-unit-secs", 86400);
             int blockEpochUnitSeconds = query.GetInt32("block-epoch-unit-secs", 86400);
             int dbConnectionCacheSize = query.GetInt32("connection-cache", 100);
+            string secondaryPath = query.Get("secondary-path");
             RocksDBInstanceType instanceType = query.GetEnum<RocksDBInstanceType>(
                 "instance-type", RocksDBInstanceType.Primary);
 
@@ -1386,12 +1392,14 @@ namespace Libplanet.RocksDBStore
                 txEpochUnitSeconds,
                 blockEpochUnitSeconds,
                 dbConnectionCacheSize,
-                instanceType);
+                instanceType,
+                secondaryPath);
             string statesDirPath = Path.Combine(storeUri.LocalPath, statesKvPath);
             var stateStore = new TrieStateStore(
                 new RocksDBKeyValueStore(
                     statesDirPath,
-                    instanceType));
+                    instanceType,
+                    secondaryPath));
             return (store, stateStore);
         }
 

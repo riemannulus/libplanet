@@ -81,6 +81,7 @@ namespace Libplanet.RocksDBStore
         public RocksDBKeyValueStore(
             string path,
             RocksDBInstanceType type = RocksDBInstanceType.Primary,
+            string secondaryPath = "",
             DbOptions? options = null)
         {
             options ??= new DbOptions()
@@ -88,7 +89,11 @@ namespace Libplanet.RocksDBStore
                 .SetSoftPendingCompactionBytesLimit(1000000000000)
                 .SetHardPendingCompactionBytesLimit(1038176821042);
 
-            _keyValueDb = RocksDBUtils.OpenRocksDb(options, path, type: type);
+            _keyValueDb = RocksDBUtils.OpenRocksDb(
+                options,
+                path,
+                secondaryPath: secondaryPath,
+                type: type);
             Type = type;
         }
 

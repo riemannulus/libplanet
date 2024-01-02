@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Bencodex.Types;
 using Libplanet.Action.State;
@@ -20,11 +21,13 @@ namespace Libplanet.Blockchain
     {
         private readonly IStore _store;
         private readonly IStateStore _stateStore;
+        private readonly ActivitySource _activitySource;
 
         public BlockChainStates(IStore store, IStateStore stateStore)
         {
             _store = store;
             _stateStore = stateStore;
+            _activitySource = new ActivitySource("Libplanet.Blockchain.BlockChainStates");
         }
 
         /// <inheritdoc cref="IBlockChainStates.GetState"/>
@@ -34,8 +37,14 @@ namespace Libplanet.Blockchain
 
         /// <inheritdoc cref="IBlockChainStates.GetStates"/>
         public IReadOnlyList<IValue?> GetStates(
-            IReadOnlyList<Address> addresses, BlockHash? offset) =>
-            GetAccountState(offset).GetStates(addresses);
+            IReadOnlyList<Address> addresses, BlockHash? offset)
+        {
+            using Activity? a = _activitySource
+                .StartActivity(ActivityKind.Internal)?
+                .AddTag("BlockHash", offset?.ToString())
+                .AddTag("AddressCount", addresses.Count);
+            return GetAccountState(offset).GetStates(addresses);
+        }
 
         /// <inheritdoc cref="IBlockChainStates.GetBalance"/>
         public FungibleAssetValue GetBalance(
@@ -51,8 +60,13 @@ namespace Libplanet.Blockchain
             GetAccountState(offset).GetValidatorSet();
 
         /// <inheritdoc cref="IBlockChainStates.GetAccountState(BlockHash?)"/>
-        public IAccountState GetAccountState(BlockHash? offset) =>
-            new AccountState(GetTrie(offset));
+        public IAccountState GetAccountState(BlockHash? offset)
+        {
+            using Activity? a = _activitySource
+                .StartActivity(ActivityKind.Internal)?
+                .AddTag("BlockHash", offset?.ToString());
+            return new AccountState(GetTrie(offset));
+        }
 
         /// <inheritdoc cref="IBlockChainStates.GetAccountState(HashDigest{SHA256}?)"/>
         public IAccountState GetAccountState(HashDigest<SHA256>? hash) =>
@@ -84,16 +98,22 @@ namespace Libplanet.Blockchain
         /// </remarks>
         private ITrie GetTrie(BlockHash? offset)
         {
+            using Activity? a = _activitySource
+                .StartActivity(ActivityKind.Internal)?
+                .AddTag("BlockHash", offset?.ToString());
             if (!(offset is { } hash))
             {
+                a?.SetStatus(ActivityStatusCode.Ok);
                 return _stateStore.GetStateRoot(null);
             }
             else if (_store.GetStateRootHash(hash) is { } stateRootHash)
             {
+                a?.SetStatus(ActivityStatusCode.Ok);
                 return GetTrie(stateRootHash);
             }
             else
             {
+                a?.SetStatus(ActivityStatusCode.Error);
                 throw new ArgumentException(
                     $"Could not find block hash {hash} in {nameof(IStore)}.",
                     nameof(offset));
@@ -102,6 +122,9 @@ namespace Libplanet.Blockchain
 
         private ITrie GetTrie(HashDigest<SHA256>? hash)
         {
+            using Activity? a = _activitySource
+                .StartActivity(ActivityKind.Internal)?
+                .AddTag("StateRootHash", hash?.ToString());
             ITrie trie = _stateStore.GetStateRoot(hash);
             return trie.Recorded
                 ? trie
