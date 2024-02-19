@@ -59,6 +59,7 @@ namespace Libplanet.Action
 
         public IWorld Mortgage(IWorld world)
         {
+            return world;
             if (_state == FeeCollectState.CannotCollectible ||
                 !CheckState(FeeCollectState.Mortgage))
             {
@@ -91,6 +92,7 @@ namespace Libplanet.Action
 
         public IWorld Refund(IWorld world)
         {
+            return world;
             if (_state == FeeCollectState.CannotCollectible ||
                 !CheckState(FeeCollectState.Refund))
             {
@@ -118,6 +120,7 @@ namespace Libplanet.Action
 
         public IWorld Reward(IWorld world)
         {
+            return world;
             if (_state == FeeCollectState.CannotCollectible ||
                 !CheckState(FeeCollectState.Reward))
             {

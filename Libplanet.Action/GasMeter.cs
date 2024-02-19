@@ -16,6 +16,7 @@ namespace Libplanet.Action
 
         public void UseGas(long gas)
         {
+            return;
             if (gas < 0)
             {
                 throw new GasUseNegativeException();
