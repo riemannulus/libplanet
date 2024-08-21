@@ -69,6 +69,7 @@ namespace Libplanet.RocksDBStore
     public class RocksDBKeyValueStore : IKeyValueStore
     {
         private readonly RocksDb _keyValueDb;
+        private WriteBatch _writeBatch;
         private bool _disposed = false;
 
         /// <summary>
@@ -89,6 +90,7 @@ namespace Libplanet.RocksDBStore
                 .SetHardPendingCompactionBytesLimit(1038176821042);
 
             _keyValueDb = RocksDBUtils.OpenRocksDb(options, path, type: type);
+            _writeBatch = new WriteBatch();
             Type = type;
         }
 
@@ -101,26 +103,22 @@ namespace Libplanet.RocksDBStore
         /// <inheritdoc/>
         public void Set(in KeyBytes key, byte[] value)
         {
-            _keyValueDb.Put(key.ToByteArray(), value);
+            _writeBatch.Put(key.ToByteArray(), value);
         }
 
         /// <inheritdoc/>
         public void Set(IDictionary<KeyBytes, byte[]> values)
         {
-            using var writeBatch = new WriteBatch();
-
             foreach (KeyValuePair<KeyBytes, byte[]> kv in values)
             {
-                writeBatch.Put(kv.Key.ToByteArray(), kv.Value);
+                _writeBatch.Put(kv.Key.ToByteArray(), kv.Value);
             }
-
-            _keyValueDb.Write(writeBatch);
         }
 
         /// <inheritdoc/>
         public void Delete(in KeyBytes key)
         {
-            _keyValueDb.Remove(key.ToByteArray());
+            _writeBatch.Delete(key.ToByteArray());
         }
 
         /// <inheritdoc cref="IKeyValueStore.Delete(IEnumerable{KeyBytes})"/>
@@ -128,7 +126,7 @@ namespace Libplanet.RocksDBStore
         {
             foreach (KeyBytes key in keys)
             {
-                _keyValueDb.Remove(key.ToByteArray());
+                _writeBatch.Delete(key.ToByteArray());
             }
         }
 
@@ -154,6 +152,12 @@ namespace Libplanet.RocksDBStore
             {
                 yield return new KeyBytes(it.Key());
             }
+        }
+
+        public void Commit()
+        {
+            _keyValueDb.Write(_writeBatch);
+            _writeBatch = new WriteBatch();
         }
 
         public void TryCatchUpWithPrimary()

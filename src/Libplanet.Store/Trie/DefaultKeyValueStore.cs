@@ -152,6 +152,11 @@ namespace Libplanet.Store.Trie
             _root.EnumerateFiles(UPath.Root)
                 .Select(path => KeyBytes.FromHex(path.GetName()));
 
+        public void Commit()
+        {
+            throw new NotSupportedException();
+        }
+
         private UPath DataPath(in KeyBytes key) =>
             UPath.Root / key.Hex;
     }

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Caching;
+using Jitbit.Utils;
 using Libplanet.Types.Blocks;
 
 namespace Libplanet.Store
@@ -10,12 +11,12 @@ namespace Libplanet.Store
     public class BlockSet : IReadOnlyDictionary<BlockHash, Block>
     {
         private readonly IStore _store;
-        private readonly LRUCache<BlockHash, Block> _cache;
+        private readonly FastCache<BlockHash, Block> _fastCache;
 
         public BlockSet(IStore store, int cacheSize = 4096)
         {
             _store = store;
-            _cache = new LRUCache<BlockHash, Block>(cacheSize, Math.Max(cacheSize / 64, 8));
+            _fastCache = new FastCache<BlockHash, Block>();
         }
 
         public IEnumerable<BlockHash> Keys =>
@@ -68,7 +69,7 @@ namespace Libplanet.Store
 
                 value.ValidateTimestamp();
                 _store.PutBlock(value);
-                _cache.AddReplace(value.Hash, value);
+                _fastCache.AddOrUpdate(value.Hash, value, TimeSpan.FromMinutes(1));
             }
         }
 
@@ -82,7 +83,7 @@ namespace Libplanet.Store
         {
             bool deleted = _store.DeleteBlock(key);
 
-            _cache.Remove(key);
+            _fastCache.Remove(key);
 
             return deleted;
         }
@@ -153,23 +154,15 @@ namespace Libplanet.Store
 
         private Block? GetBlock(BlockHash key)
         {
-            if (_cache.TryGet(key, out Block cached))
+            if (_fastCache.TryGet(key, out Block cached))
             {
-                if (_store.ContainsBlock(key))
-                {
-                    return cached;
-                }
-                else
-                {
-                    // The cached block had been deleted on _store...
-                    _cache.Remove(key);
-                }
+                return cached;
             }
 
             Block? fetched = _store.GetBlock(key);
             if (fetched is { })
             {
-                _cache.AddReplace(key, fetched);
+                _fastCache.AddOrUpdate(key, fetched, TimeSpan.FromMinutes(1));
             }
 
             return fetched;

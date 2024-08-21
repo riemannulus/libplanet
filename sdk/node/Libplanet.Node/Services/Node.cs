@@ -1,9 +1,8 @@
+using System.Collections.Immutable;
 using System.Net;
 using Libplanet.Blockchain;
-using Libplanet.Common;
 using Libplanet.Crypto;
 using Libplanet.Net;
-using Libplanet.Net.Consensus;
 using Libplanet.Net.Options;
 using Libplanet.Net.Transports;
 using Libplanet.Node.Options;
@@ -100,60 +99,32 @@ internal sealed class Node : IAsyncDisposable
         var seedPublicKey = _seedNodePrivateKey.PublicKey;
         var privateKey = PrivateKey.FromString(_nodeOptions.PrivateKey);
         var nodeOptions = NodeOptions;
-        var storePath = _storePath;
         var blocksyncEndPoint = _blocksyncEndPoint ?? EndPointUtility.Next();
         var consensusEndPoint = _consensusEndPoint ?? EndPointUtility.Next();
-        var blocksyncSeedPeer = BoundPeerUtility.ParseOrFallback(
-            nodeOptions.BlocksyncSeedPeer,
-            () => new BoundPeer(seedPublicKey, EndPointUtility.Next()));
-        var consensusSeedPeer = BoundPeerUtility.ParseOrFallback(
-            nodeOptions.ConsensusSeedPeer,
-            () => new BoundPeer(seedPublicKey, EndPointUtility.Next()));
+        var blocksyncSeedPeer = BoundPeer.ParsePeer(nodeOptions.BlocksyncSeedPeer);
         var swarmTransport = await CreateTransport(
             privateKey: privateKey,
             endPoint: blocksyncEndPoint);
-        var swarmOptions = new SwarmOptions
+        var swarmOptions = new Net.Options.SwarmOptions
         {
+            BranchpointThreshold = 50,
+            MinimumBroadcastTarget = 10,
+            BucketSize = 16,
+            MaximumPollPeers = 5,
+            TimeoutOptions = new Net.Options.TimeoutOptions
+            {
+                MaxTimeout = TimeSpan.FromSeconds(50),
+                GetBlockHashesTimeout = TimeSpan.FromSeconds(50),
+                GetBlocksBaseTimeout = TimeSpan.FromSeconds(5),
+            },
             StaticPeers = [blocksyncSeedPeer],
             BootstrapOptions = new()
             {
                 SeedPeers = [blocksyncSeedPeer],
             },
         };
-        var consensusTransport = await CreateTransport(
-            privateKey: privateKey,
-            endPoint: consensusEndPoint);
-        var consensusReactorOption = new ConsensusReactorOption
-        {
-            SeedPeers = [consensusSeedPeer],
-            ConsensusPort = consensusEndPoint.Port,
-            ConsensusPrivateKey = privateKey,
-            TargetBlockInterval = TimeSpan.FromSeconds(2),
-            ContextTimeoutOptions = new(),
-        };
+
         var blockChain = BlockChain;
-
-        if (nodeOptions.BlocksyncSeedPeer == string.Empty)
-        {
-            _blocksyncSeed = new Seed(new()
-            {
-                PrivateKey = ByteUtil.Hex(_seedNodePrivateKey.ByteArray),
-                EndPoint = EndPointUtility.ToString(blocksyncSeedPeer.EndPoint),
-            });
-            await _blocksyncSeed.StartAsync(cancellationToken);
-            _logger.LogDebug("Node.BlocksyncSeed is started: {Address}", Address);
-        }
-
-        if (nodeOptions.ConsensusSeedPeer == string.Empty)
-        {
-            _consensusSeed = new Seed(new()
-            {
-                PrivateKey = ByteUtil.Hex(_seedNodePrivateKey.ByteArray),
-                EndPoint = EndPointUtility.ToString(consensusSeedPeer.EndPoint),
-            });
-            await _consensusSeed.StartAsync(cancellationToken);
-            _logger.LogDebug("Node.ConsensusSeed is started: {Address}", Address);
-        }
 
         _blocksyncEndPoint = blocksyncEndPoint;
         _consensusEndPoint = consensusEndPoint;
@@ -162,11 +133,11 @@ internal sealed class Node : IAsyncDisposable
             privateKey: privateKey,
             transport: swarmTransport,
             options: swarmOptions,
-            consensusTransport: consensusTransport,
-            consensusOption: consensusReactorOption);
-        _startTask = _swarm.StartAsync(cancellationToken: default);
+            consensusTransport: null,
+            consensusOption: null);
+        _startTask = _swarm.StartAsync(cancellationToken: cancellationToken);
         _logger.LogDebug("Node.Swarm is starting: {Address}", Address);
-        await _swarm.BootstrapAsync(cancellationToken: default);
+        await _swarm.BootstrapAsync(cancellationToken: cancellationToken);
         _logger.LogDebug("Node.Swarm is bootstrapped: {Address}", Address);
         IsRunning = true;
         _logger.LogDebug("Node is started: {Address}", Address);
@@ -247,8 +218,20 @@ internal sealed class Node : IAsyncDisposable
         var appProtocolVersionOptions = new AppProtocolVersionOptions
         {
             AppProtocolVersion = GenesisOptions.AppProtocolVersion,
+            TrustedAppProtocolVersionSigners = new HashSet<PublicKey>()
+            {
+                PublicKey.FromHex("030ffa9bd579ee1503ce008394f687c182279da913bfaec12baca34e79698a7cd1")
+            }.ToImmutableHashSet(),
+
         };
-        var hostOptions = new Net.Options.HostOptions(endPoint.Host, [], endPoint.Port);
-        return await NetMQTransport.Create(privateKey, appProtocolVersionOptions, hostOptions);
+
+        var endpoint = EndPointUtility.Next();
+
+        var hostOptions = new Net.Options.HostOptions(endpoint.Host, [], endpoint.Port);
+        return await NetMQTransport.Create(
+            privateKey,
+            appProtocolVersionOptions,
+            hostOptions,
+            TimeSpan.FromSeconds(60));
     }
 }

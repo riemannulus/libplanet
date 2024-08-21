@@ -62,5 +62,10 @@ namespace Libplanet.Store.Trie
 
         IEnumerable<KeyBytes> IKeyValueStore.ListKeys() =>
             _dictionary.Keys;
+
+        public void Commit()
+        {
+            throw new NotSupportedException();
+        }
     }
 }

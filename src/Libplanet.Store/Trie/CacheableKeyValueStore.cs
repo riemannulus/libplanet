@@ -79,6 +79,11 @@ namespace Libplanet.Store.Trie
         /// <inheritdoc/>
         public IEnumerable<KeyBytes> ListKeys() => _keyValueStore.ListKeys();
 
+        public void Commit()
+        {
+            throw new NotSupportedException();
+        }
+
         /// <inheritdoc cref="IDisposable.Dispose()"/>
         public void Dispose()
         {

@@ -15,7 +15,8 @@ public sealed class NodeOptions : OptionsBase<NodeOptions>
 
     [BoundPeer]
     [Description("The endpoint of the node to block sync.")]
-    public string BlocksyncSeedPeer { get; init; } = string.Empty;
+    public string BlocksyncSeedPeer { get; init; }
+        = "027bd36895d68681290e570692ad3736750ceaab37be402442ffb203967f98f7b6,9c-main-tcp-seed-1.planetarium.dev,31234";
 
     [BoundPeer]
     [Description("The endpoint of the node to consensus.")]

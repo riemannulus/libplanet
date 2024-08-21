@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Security.Cryptography;
+using Bencodex;
 using Bencodex.Types;
 using Libplanet.Action;
 using Libplanet.Action.Loader;
@@ -38,7 +39,8 @@ internal sealed class BlockChainService : IBlockChainService, IActionRenderer
         IOptions<GenesisOptions> genesisOptions,
         IOptions<StoreOptions> storeOptions,
         PolicyService policyService,
-        IEnumerable<IActionLoaderProvider> actionLoaderProviders,
+        IActionLoader actionLoader,
+        IPolicyActionsRegistry policyActions,
         ILogger<BlockChainService> logger)
     {
         _synchronizationContext = SynchronizationContext.Current ?? new();
@@ -48,7 +50,8 @@ internal sealed class BlockChainService : IBlockChainService, IActionRenderer
             storeOptions: storeOptions.Value.Verify(),
             stagePolicy: policyService.StagePolicy,
             renderers: [this],
-            actionLoaders: [.. actionLoaderProviders.Select(item => item.GetActionLoader())]);
+            actionLoader: actionLoader,
+            policyActions: policyActions);
     }
 
     public event EventHandler<BlockEventArgs>? BlockAppended;
@@ -84,7 +87,7 @@ internal sealed class BlockChainService : IBlockChainService, IActionRenderer
                 }
             }
 
-            _logger.LogInformation("#{Height}: Block appended.", newTip.Index);
+            _logger.LogInformation("#{Height}: Block appended", newTip.Index);
             BlockAppended?.Invoke(this, new(newTip));
         }
     }
@@ -94,42 +97,36 @@ internal sealed class BlockChainService : IBlockChainService, IActionRenderer
         StoreOptions storeOptions,
         IStagePolicy stagePolicy,
         IRenderer[] renderers,
-        IActionLoader[] actionLoaders)
+        IActionLoader actionLoader,
+        IPolicyActionsRegistry policyActions)
     {
-        var genesisKey = PrivateKey.FromString(genesisOptions.GenesisKey);
         var (store, stateStore) = CreateStore(storeOptions);
-        var actionLoader = new AggregateTypedActionLoader(actionLoaders);
         var actionEvaluator = new ActionEvaluator(
-            policyActionsRegistry: new(),
+            policyActionsRegistry: policyActions,
             stateStore,
             actionLoader);
-        var validators = genesisOptions.Validators.Select(PublicKey.FromHex)
-                            .Select(item => new Validator(item, new BigInteger(1000)))
-                            .ToArray();
-        var validatorSet = new ValidatorSet(validators: [.. validators]);
-        var nonce = 0L;
-        IAction[] actions =
-        [
-            new Initialize(
-                validatorSet: validatorSet,
-                states: ImmutableDictionary.Create<Address, IValue>()),
-        ];
 
-        var transaction = Transaction.Create(
-            nonce: nonce,
-            privateKey: genesisKey,
-            genesisHash: null,
-            actions: [.. actions.Select(item => item.PlainValue)],
-            timestamp: DateTimeOffset.MinValue);
-        var transactions = ImmutableList.Create(transaction);
-        var genesisBlock = BlockChain.ProposeGenesisBlock(
-            privateKey: genesisKey,
-            transactions: transactions,
-            timestamp: DateTimeOffset.MinValue);
+        Block genesisBlock;
+        if (genesisOptions.GenesisBlockPath is null)
+        {
+            genesisBlock = CreateGenesisBlock(genesisOptions);
+        }
+        else
+        {
+            genesisBlock = LoadGenesisBlock(genesisOptions.GenesisBlockPath);
+        }
+
         var policy = new BlockPolicy(
-            blockInterval: TimeSpan.FromSeconds(10),
-            getMaxTransactionsPerBlock: _ => int.MaxValue,
-            getMaxTransactionsBytes: _ => long.MaxValue);
+            policyActionsRegistry: policyActions,
+            blockInterval: TimeSpan.FromSeconds(8),
+            validateNextBlockTx: (chain, transaction) => null,
+            validateNextBlock: (chain, block) => null,
+            getMaxTransactionsBytes: l => long.MaxValue,
+            getMinTransactionsPerBlock: l => 0,
+            getMaxTransactionsPerBlock: l => int.MaxValue,
+            getMaxTransactionsPerSignerPerBlock: l => int.MaxValue
+        );
+
         var blockChainStates = new BlockChainStates(store, stateStore);
         if (store.GetCanonicalChainId() is null)
         {
@@ -177,6 +174,59 @@ internal sealed class BlockChainService : IBlockChainService, IActionRenderer
             var keyValueStore = new RocksDBKeyValueStore(storeOptions.StateStoreName);
             var stateStore = new TrieStateStore(keyValueStore);
             return (store, stateStore);
+        }
+    }
+
+    private static Block CreateGenesisBlock(GenesisOptions genesisOptions)
+    {
+        var genesisKey = PrivateKey.FromString(genesisOptions.GenesisKey);
+        var validators = genesisOptions.Validators.Select(PublicKey.FromHex)
+            .Select(item => new Validator(item, new BigInteger(1000)))
+            .ToArray();
+        var validatorSet = new ValidatorSet(validators: [.. validators]);
+        var nonce = 0L;
+        IAction[] actions =
+        [
+            new Initialize(
+                validatorSet: validatorSet,
+                states: ImmutableDictionary.Create<Address, IValue>()),
+        ];
+
+        var transaction = Transaction.Create(
+            nonce: nonce,
+            privateKey: genesisKey,
+            genesisHash: null,
+            actions: [.. actions.Select(item => item.PlainValue)],
+            timestamp: DateTimeOffset.MinValue);
+        var transactions = ImmutableList.Create(transaction);
+        return BlockChain.ProposeGenesisBlock(
+            privateKey: genesisKey,
+            transactions: transactions,
+            timestamp: DateTimeOffset.MinValue);
+    }
+
+    private static Block LoadGenesisBlock(string path)
+    {
+        if (!string.IsNullOrEmpty(path))
+        {
+            byte[] rawBlock;
+            if (File.Exists(Path.GetFullPath(path)))
+            {
+                rawBlock = File.ReadAllBytes(Path.GetFullPath(path));
+            }
+            else
+            {
+                var uri = new Uri(path);
+                using var client = new HttpClient();
+                rawBlock = client.GetByteArrayAsync(uri).Result;
+            }
+
+            var blockDict = (Dictionary)new Codec().Decode(rawBlock);
+            return BlockMarshaler.UnmarshalBlock(blockDict);
+        }
+        else
+        {
+            throw new ArgumentException("GenesisBlockPath or GenesisBlock must be set.");
         }
     }
 }

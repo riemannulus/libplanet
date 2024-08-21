@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -28,7 +29,7 @@ namespace Libplanet.Store
             }
             else
             {
-                var writeBatch = new WriteBatch(StateKeyValueStore, 4096);
+                var writeBatch = new WriteBatch(StateKeyValueStore);
                 INode newRoot = Commit(root, writeBatch, _cache);
 
                 // It assumes embedded node if it's not HashNode.
@@ -138,32 +139,20 @@ namespace Libplanet.Store
         private class WriteBatch
         {
             private readonly IKeyValueStore _store;
-            private readonly int _batchSize;
-            private readonly Dictionary<KeyBytes, byte[]> _batch;
 
-            public WriteBatch(IKeyValueStore store, int batchSize)
+            public WriteBatch(IKeyValueStore store)
             {
                 _store = store;
-                _batchSize = batchSize;
-                _batch = new Dictionary<KeyBytes, byte[]>(_batchSize);
             }
-
-            public bool ContainsKey(KeyBytes key) => _batch.ContainsKey(key);
 
             public void Add(KeyBytes key, byte[] value)
             {
-                _batch[key] = value;
-
-                if (_batch.Count == _batchSize)
-                {
-                    Flush();
-                }
+                _store.Set(key, value);
             }
 
             public void Flush()
             {
-                _store.Set(_batch);
-                _batch.Clear();
+                _store.Commit();
             }
         }
     }

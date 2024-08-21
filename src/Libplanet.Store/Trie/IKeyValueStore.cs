@@ -56,5 +56,10 @@ namespace Libplanet.Store.Trie
         /// <returns>All keys in an arbitrary order.  The order might be vary for each call.
         /// </returns>
         public IEnumerable<KeyBytes> ListKeys();
+
+        /// <summary>
+        /// Commits the changes to the store.
+        /// </summary>
+        public void Commit();
     }
 }

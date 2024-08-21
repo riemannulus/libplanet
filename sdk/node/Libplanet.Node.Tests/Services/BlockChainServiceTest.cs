@@ -1,3 +1,4 @@
+using Libplanet.Action.Loader;
 using Libplanet.Blockchain;
 using Libplanet.Crypto;
 using Libplanet.Node.Extensions;
@@ -27,7 +28,7 @@ public class BlockChainServiceTest
                 genesisOptions: genesisOptions,
                 storeOptions: storeOptions,
                 policyService: policyService,
-                actionLoaderProviders: [],
+                actionLoader: TypedActionLoader.Create(),
                 logger: logger);
         }
     }
@@ -52,7 +53,7 @@ public class BlockChainServiceTest
             genesisOptions: genesisOptions,
             storeOptions: storeOptions,
             policyService: policyService,
-            actionLoaderProviders: [],
+            actionLoader: TypedActionLoader.Create(),
             logger: logger);
         var blockChain = blockChainService.BlockChain;
 
