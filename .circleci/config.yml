@@ -68,7 +68,7 @@ commands:
         type: string
         default: ""
     steps:
-    - checkout
+    - run: git clone --depth 5 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH"
     - concat_files:
         glob: "{src,test,tools}/*/*.csproj"
         to: .combined-package-files.txt
@@ -141,7 +141,7 @@ commands:
             key: v1-dotcover-{{ arch }}
             paths:
             - ~/.nuget/packages
-    - checkout
+    - run: git clone --depth 5 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH"
     - attach_workspace:
         at: .
     - run:
@@ -307,7 +307,7 @@ commands:
         type: string
         default: 0.5.0
     steps:
-    - checkout
+    - run: git clone --depth 5 "$CIRCLE_REPOSITORY_URL" --branch "$CIRCLE_BRANCH"
     - attach_workspace:
         at: .
     - run:
